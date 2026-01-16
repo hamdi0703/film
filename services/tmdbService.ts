@@ -4,13 +4,13 @@ export const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780';
 export const BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/w1280';
 const BASE_URL = 'https://api.themoviedb.org/3';
 
-// SYSTEM CONFIGURATION
-const SYSTEM_API_KEY = (import.meta as any).env.VITE_TMDB_KEY || '';
+// SYSTEM CONFIGURATION - HARDCODED for Vercel stability
+const SYSTEM_API_KEY = '84fedfba42a08ab1365b8261d7ff276d';
 
 export class TmdbService {
   constructor() {
     if (!SYSTEM_API_KEY) {
-      console.warn("TMDB API Key is missing. Check VITE_TMDB_KEY environment variable.");
+      console.warn("TMDB API Key is missing.");
     }
   }
 

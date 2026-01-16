@@ -18,9 +18,7 @@ import ErrorBoundary from '../ErrorBoundary';
 
 // --- CONFIGURATION: BASE URL ---
 // Burayı değiştirerek ana domain'i yönetebilirsin.
-// Örnek: 'https://vita.vercel.app' 
-// Otomatik algılaması için window.location.origin de kullanılabilir.
-const BASE_APP_URL = window.location.origin; 
+const BASE_APP_URL = 'https://film5.vercel.app';
 
 interface DashboardViewProps {
   onSelectMovie: (movie: Movie) => void;
