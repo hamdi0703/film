@@ -30,7 +30,7 @@ const DEFAULT_COLLECTION: Collection = {
     topFavoriteShows: [null, null, null, null, null]
 };
 
-// HELPER: Generate XXXX-XXXX-XXXX-XXXX format
+// HELPER: Generate XXXX-XXXX-XXXX-XXXX format (16 chars)
 const generateShareCode = (): string => {
     const part = () => Math.random().toString(36).substring(2, 6).toUpperCase().padEnd(4, 'X');
     return `${part()}-${part()}-${part()}-${part()}`;
@@ -285,7 +285,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     if (user) {
-        // Generate specific 16-char code
+        // GENERATE 16-CHAR CODE: XXXX-XXXX-XXXX-XXXX
         const shareCode = generateShareCode();
 
         const optimizedMovies = collection.movies.map(m => {
@@ -300,11 +300,11 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     user_id: user.id,
                     name: collection.name,
                     movies: optimizedMovies,
-                    share_code: shareCode // Save the custom code
+                    share_code: shareCode // Saving the formatted code
                 });
 
             if (error) throw error;
-            return `?list=${shareCode}`; // Return formatted code parameter
+            return `?list=${shareCode}`; // Return formatted parameter
         } catch (error: any) {
             console.error("Share failed:", error);
             showToast('Paylaşım oluşturulamadı.', 'error');
@@ -317,7 +317,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadCloudList = async (shareCode: string) => {
       try {
-          // Query by share_code column
+          // QUERY BY share_code instead of ID
           const { data, error } = await supabase
             .from('shared_lists')
             .select('*')
@@ -327,7 +327,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (error) throw error;
           if (data) {
              const newCollection: Collection = {
-                id: `cloud-${data.id}`, // Internal ID can remain UUID
+                id: `cloud-${data.id}`, 
                 name: data.name || 'Paylaşılan Liste',
                 movies: data.movies || [],
                 topFavoriteMovies: [null, null, null, null, null],

@@ -17,8 +17,9 @@ import { useToast } from '../../context/ToastContext';
 import ErrorBoundary from '../ErrorBoundary';
 
 // --- CONFIGURATION: BASE URL ---
-// You can change this string to match your production domain.
-// Example: 'https://vista.vercel.app' or window.location.origin for auto-detect.
+// Burayı değiştirerek ana domain'i yönetebilirsin.
+// Örnek: 'https://vita.vercel.app' 
+// Otomatik algılaması için window.location.origin de kullanılabilir.
 const BASE_APP_URL = window.location.origin; 
 
 interface DashboardViewProps {

@@ -40,11 +40,11 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedIds = params.get('ids');
-    const cloudListId = params.get('list');
+    const cloudListCode = params.get('list'); // Changed from 'id' to 'list' based on new requirement
 
-    if (cloudListId) {
-        // Load persistent cloud list
-        loadCloudList(cloudListId).then(() => {
+    if (cloudListCode) {
+        // Load persistent cloud list by 16-char CODE
+        loadCloudList(cloudListCode).then(() => {
             setViewMode('dashboard');
         });
     } else if (sharedIds) {
