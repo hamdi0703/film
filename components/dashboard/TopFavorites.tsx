@@ -1,0 +1,267 @@
+import React from 'react';
+import { Movie, MediaType } from '../../types';
+import { IMAGE_BASE_URL } from '../../services/tmdbService';
+import { useReviewContext } from '../../context/ReviewContext';
+
+interface TopFavoritesProps {
+  favorites: (number | null)[]; // Array of 5 IDs
+  collectionMovies: Movie[];
+  onSlotClick: (index: number) => void;
+  type: MediaType;
+}
+
+const TopFavorites: React.FC<TopFavoritesProps> = ({ favorites, collectionMovies, onSlotClick, type }) => {
+  const { reviews } = useReviewContext();
+  
+  const getMovie = (id: number | null) => {
+    if (!id) return null;
+    return collectionMovies.find(m => m.id === id) || null;
+  };
+
+  const getYear = (movie: Movie) => {
+      const date = movie.release_date || movie.first_air_date;
+      return date ? new Date(date).getFullYear() : '';
+  };
+
+  const renderCard = (index: number, rank: number, sizeClass: string, containerWidthClass: string) => {
+    const movieId = favorites[index];
+    const movie = getMovie(movieId);
+    const imageUrl = movie?.poster_path ? `${IMAGE_BASE_URL}${movie.poster_path}` : null;
+    const isEmpty = !movie;
+
+    // User Data
+    const userReview = movieId ? reviews[movieId] : null;
+    const userRating = userReview?.rating;
+    
+    // Spoiler Logic for Dashboard Tooltip
+    let userComment = userReview?.comment;
+    const isSpoiler = userReview?.hasSpoiler;
+    if (isSpoiler && userComment) {
+        userComment = "Spoiler içerdiği için gizlendi.";
+    }
+
+    // Rank Styling
+    let rankColor = "bg-neutral-800 text-white";
+    let glowColor = "";
+    
+    if (rank === 1) {
+        rankColor = "bg-gradient-to-br from-yellow-400 to-amber-600 text-white shadow-amber-500/50";
+        glowColor = "group-hover:shadow-[0_0_30px_-5px_rgba(251,191,36,0.5)]";
+    } else if (rank === 2) {
+        rankColor = "bg-gradient-to-br from-slate-300 to-slate-500 text-white shadow-slate-500/50";
+        glowColor = "group-hover:shadow-[0_0_30px_-5px_rgba(148,163,184,0.5)]";
+    } else if (rank === 3) {
+        rankColor = "bg-gradient-to-br from-orange-300 to-orange-700 text-white shadow-orange-500/50";
+        glowColor = "group-hover:shadow-[0_0_30px_-5px_rgba(234,88,12,0.5)]";
+    }
+
+    return (
+      <div 
+        key={`fav-${type}-${index}`}
+        className={`flex flex-col items-center group ${containerWidthClass}`}
+      >
+          {/* POSTER CARD */}
+          <div 
+            onClick={() => onSlotClick(index)}
+            className={`relative cursor-pointer transition-all duration-500 ease-out transform hover:-translate-y-2 ${sizeClass}`}
+          >
+            {/* Card Frame */}
+            <div className={`w-full h-full rounded-2xl overflow-hidden relative border transition-all duration-300 ${
+                isEmpty 
+                ? 'bg-white/5 border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-white/10' 
+                : `bg-neutral-900 border-transparent shadow-xl ${glowColor}`
+            }`}>
+                {/* Image */}
+                {movie && imageUrl ? (
+                    <>
+                        <img 
+                            src={imageUrl} 
+                            alt={movie.title} 
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        
+                        {/* Remove Icon */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                            <div className="bg-black/40 backdrop-blur-md p-1.5 rounded-full text-white/70 hover:bg-red-500 hover:text-white">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-neutral-400 group-hover:text-indigo-500 transition-colors">
+                        <svg className="w-8 h-8 mb-2 opacity-50 group-hover:opacity-100 group-hover:scale-110 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">Seç</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Rank Badge */}
+            <div className={`absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-20 w-8 h-8 flex items-center justify-center rounded-full text-sm font-black shadow-lg border-2 border-white dark:border-neutral-900 ${rankColor}`}>
+                {rank}
+            </div>
+          </div>
+
+          {/* META INFO & REVIEW (Below the card) */}
+          {movie && (
+              <div className="mt-5 text-center w-full px-1 animate-fade-in">
+                  {/* Title & Year */}
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight mb-1 truncate">
+                      {movie.title || movie.name}
+                  </h3>
+                  <div className="text-[10px] text-neutral-500 font-medium mb-2">
+                      {getYear(movie)}
+                  </div>
+
+                  {/* Ratings Row */}
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                      {/* TMDB */}
+                      <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-md">
+                          <svg className="w-3 h-3 text-yellow-500 fill-current" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                          <span className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300">{movie.vote_average.toFixed(1)}</span>
+                      </div>
+                      
+                      {/* User Rating */}
+                      {userRating ? (
+                           <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded-md">
+                                <svg className="w-3 h-3 text-blue-500 fill-current" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{userRating}</span>
+                           </div>
+                      ) : (
+                          <div className="flex items-center gap-1 opacity-40 grayscale">
+                                <svg className="w-3 h-3 text-neutral-400 fill-current" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+                                <span className="text-[10px] font-bold">-</span>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* Review / Comment */}
+                  {userComment && (
+                      <div className="relative">
+                          {/* Triangle Pointer */}
+                          <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white dark:bg-neutral-800 rotate-45 border-t border-l border-neutral-200 dark:border-neutral-700/50"></div>
+                          
+                          <div className={`bg-white/80 dark:bg-neutral-800/60 backdrop-blur-sm border border-neutral-200 dark:border-neutral-700/50 p-2.5 rounded-xl shadow-sm ${isSpoiler ? 'border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10' : ''}`}>
+                              <p className={`text-[11px] leading-snug line-clamp-3 ${isSpoiler ? 'text-red-500 italic font-medium' : 'text-neutral-600 dark:text-neutral-300 italic'}`}>
+                                  "{userComment}"
+                              </p>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          )}
+      </div>
+    );
+  };
+
+  const renderBonusSlot = (index: number) => {
+    const movieId = favorites[index];
+    const movie = getMovie(movieId);
+    const imageUrl = movie?.poster_path ? `${IMAGE_BASE_URL}${movie.poster_path}` : null;
+    
+    const userReview = movieId ? reviews[movieId] : null;
+
+    return (
+        <div className="flex flex-col items-center">
+            <div 
+                key={`bonus-${index}`}
+                onClick={() => onSlotClick(index)}
+                className="relative w-20 h-28 md:w-24 md:h-36 rounded-xl overflow-hidden cursor-pointer group border border-neutral-200 dark:border-neutral-800 hover:border-indigo-500 transition-all"
+            >
+                {movie && imageUrl ? (
+                    <>
+                        <img src={imageUrl} alt="Bonus" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </div>
+                    </>
+                ) : (
+                    <div className="w-full h-full bg-neutral-100 dark:bg-neutral-800 flex flex-col items-center justify-center text-neutral-400 hover:text-indigo-500">
+                        <span className="text-[9px] font-bold mb-1">BONUS</span>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </div>
+                )}
+            </div>
+            
+            {/* Minimal Info for Bonus */}
+            {movie && (
+                <div className="mt-2 text-center w-24">
+                     <div className="text-[10px] font-bold truncate text-neutral-700 dark:text-neutral-300">{movie.title || movie.name}</div>
+                     <div className="flex justify-center gap-2 mt-0.5 text-[9px] text-neutral-500">
+                         <span>★ {movie.vote_average.toFixed(1)}</span>
+                         {userReview?.rating && <span className="text-blue-500">👤 {userReview.rating}</span>}
+                     </div>
+                </div>
+            )}
+        </div>
+    );
+  }
+
+  return (
+    <div className="mb-12 animate-fade-in">
+        {/* Header */}
+        <div className="flex items-end gap-3 mb-6 px-1">
+            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white flex items-center gap-2 tracking-tight">
+                <span className={`w-1.5 h-6 rounded-full ${type === 'movie' ? 'bg-indigo-500' : 'bg-purple-500'}`}></span>
+                {type === 'movie' ? 'Film Vitrini' : 'Dizi Vitrini'}
+            </h2>
+            <div className="h-px flex-1 bg-gradient-to-r from-neutral-200 dark:from-neutral-800 to-transparent mb-2"></div>
+        </div>
+
+        {/* Main Showcase Container */}
+        <div className="bg-neutral-50/50 dark:bg-neutral-900/30 p-4 md:p-8 rounded-[2rem] border border-neutral-200/50 dark:border-neutral-800/50 relative overflow-hidden backdrop-blur-sm">
+             
+             {/* Background Effects */}
+             <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-64 bg-gradient-to-b ${type === 'movie' ? 'from-indigo-500/10' : 'from-purple-500/10'} to-transparent blur-3xl pointer-events-none rounded-full`}></div>
+
+             <div className="flex flex-col lg:flex-row items-start justify-between gap-10 relative z-10">
+                 
+                 {/* PODIUM SECTION (Left/Center) */}
+                 <div className="w-full lg:w-auto flex justify-center items-end gap-2 md:gap-4 pb-4 mx-auto">
+                     {/* Rank 2 (Left) */}
+                     <div className="flex flex-col items-center justify-end">
+                         {renderCard(1, 2, "w-24 h-36 md:w-32 md:h-48", "w-28 md:w-40")}
+                         {/* Pedestal visual optional */}
+                         <div className="h-4 w-full mt-2 bg-gradient-to-t from-slate-200/50 to-transparent dark:from-slate-800/50 rounded-t-lg mx-2 opacity-50"></div>
+                     </div>
+
+                     {/* Rank 1 (Center - Elevated) */}
+                     <div className="flex flex-col items-center justify-end -mb-8 z-10">
+                         <div className="mb-2">
+                             <svg className="w-6 h-6 text-yellow-500 animate-bounce" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                         </div>
+                         {renderCard(0, 1, "w-32 h-48 md:w-44 md:h-64 shadow-2xl", "w-40 md:w-56")}
+                         <div className="h-8 w-full mt-2 bg-gradient-to-t from-amber-200/50 to-transparent dark:from-amber-900/40 rounded-t-lg mx-2 opacity-50"></div>
+                     </div>
+
+                     {/* Rank 3 (Right) */}
+                     <div className="flex flex-col items-center justify-end">
+                         {renderCard(2, 3, "w-24 h-36 md:w-32 md:h-48", "w-28 md:w-40")}
+                         <div className="h-2 w-full mt-2 bg-gradient-to-t from-orange-200/50 to-transparent dark:from-orange-900/40 rounded-t-lg mx-2 opacity-50"></div>
+                     </div>
+                 </div>
+
+                 {/* BONUS SECTION (Right/Side) */}
+                 <div className="flex flex-row lg:flex-col items-center lg:items-end justify-center gap-4 w-full lg:w-auto mt-6 lg:mt-0 border-t lg:border-t-0 lg:border-l border-neutral-200 dark:border-neutral-800 pt-6 lg:pt-0 lg:pl-6">
+                     <div className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1 lg:text-right w-full text-center">Bonus</div>
+                     <div className="flex gap-4">
+                         {renderBonusSlot(3)}
+                         {renderBonusSlot(4)}
+                     </div>
+                 </div>
+
+             </div>
+        </div>
+    </div>
+  );
+};
+
+export default TopFavorites;
