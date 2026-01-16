@@ -86,7 +86,7 @@ const AppContent: React.FC = () => {
   const listCount = collections.find(c => c.id === activeCollectionId)?.movies.length || 0;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col font-sans pb-20 md:pb-0">
       
       {isProfileOpen && (
           <ProfileModal 
@@ -112,7 +112,8 @@ const AppContent: React.FC = () => {
         onOpenProfile={() => setIsProfileOpen(true)}
       />
       
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
+      {/* UPDATE: Increased max-width to max-w-screen-2xl for better PC scaling */}
+      <main className="flex-1 w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
         {viewMode === 'dashboard' ? (
             <DashboardView 
                 onSelectMovie={handleMovieSelect}

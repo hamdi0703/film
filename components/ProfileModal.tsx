@@ -9,7 +9,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp }) => {
   const { collections } = useCollectionContext();
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateUserStatus } = useAuth();
 
   // Stats Calculation
   const totalCollections = collections.length;
@@ -23,6 +23,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp }) => {
 
   const username = user?.user_metadata?.username || 'Misafir';
   const email = user?.email || '';
+  const isBlocked = user?.user_metadata?.is_blocked || false;
+
+  const handleToggleBlock = () => {
+      const newValue = !isBlocked;
+      if (newValue) {
+          if (window.confirm("Dikkat! Hesabınızı engellemek (block) üzeresiniz. Bunu yaparsanız oturumunuz kapatılacak ve tekrar giriş yapamayacaksınız. Onaylıyor musunuz?")) {
+              updateUserStatus(true);
+          }
+      } else {
+          updateUserStatus(false);
+      }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -50,10 +62,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp }) => {
             
             {/* Avatar & User Info */}
             <div className="flex flex-col items-center">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-4xl font-bold text-white shadow-xl mb-4 border-4 border-white dark:border-neutral-800">
+                <div className={`w-24 h-24 rounded-full bg-gradient-to-br ${isBlocked ? 'from-red-500 to-red-700' : 'from-indigo-500 to-purple-600'} flex items-center justify-center text-4xl font-bold text-white shadow-xl mb-4 border-4 border-white dark:border-neutral-800`}>
                     {username.charAt(0).toUpperCase()}
                 </div>
-                <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{username}</h3>
+                <h3 className="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                    {username}
+                    {isBlocked && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full">ENGELLİ</span>}
+                </h3>
                 <p className="text-sm text-neutral-500">{email}</p>
             </div>
 
@@ -80,6 +95,32 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp }) => {
             <div className="space-y-3">
                 <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Hesap</h4>
                 
+                {/* Block User Toggle (Supabase Metadata) */}
+                <div className="bg-neutral-50 dark:bg-neutral-900 p-4 rounded-2xl flex items-center justify-between mb-4">
+                    <div>
+                        <div className="text-sm font-bold text-neutral-900 dark:text-white">Kullanıcıyı Engelle</div>
+                        <div className="text-xs text-neutral-500">Erişimi kısıtla (is_blocked)</div>
+                    </div>
+                    
+                    <button 
+                        onClick={handleToggleBlock}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isBlocked ? 'bg-red-500' : 'bg-neutral-300 dark:bg-neutral-700'}`}
+                    >
+                        <span className="sr-only">Kullanıcıyı Engelle</span>
+                        <span
+                            className={`${
+                                isBlocked ? 'translate-x-6' : 'translate-x-1'
+                            } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                        />
+                    </button>
+                </div>
+                
+                {isBlocked && (
+                     <div className="text-[10px] text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/10 p-2 rounded-lg border border-red-100 dark:border-red-900/30">
+                         Durum: TRUE (Kullanıcı Engellendi)
+                     </div>
+                )}
+
                 <button 
                     onClick={handleSignOut}
                     className="w-full py-3 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl font-medium transition-colors text-sm flex items-center justify-center gap-2"

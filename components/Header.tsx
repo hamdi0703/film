@@ -32,8 +32,9 @@ const Header: React.FC<HeaderProps> = ({
     <>
       {isAuthModalOpen && <AuthModal onClose={closeAuthModal} />}
       
-      <header className="sticky top-0 z-40 w-full bg-vista-light/80 dark:bg-vista-dark/80 backdrop-blur-md transition-colors duration-300 border-b border-transparent dark:border-neutral-800/50">
-        <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 w-full bg-vista-light/85 dark:bg-vista-dark/85 backdrop-blur-xl transition-colors duration-300 border-b border-transparent dark:border-neutral-800/50 supports-[backdrop-filter]:bg-vista-light/60 supports-[backdrop-filter]:dark:bg-vista-dark/60">
+        {/* UPDATE: Increased max-width to match App.tsx */}
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 h-16 md:h-20 flex items-center justify-between gap-4">
           
           {/* Brand & Nav */}
           <div className="flex items-center gap-6 flex-shrink-0">
@@ -42,7 +43,7 @@ const Header: React.FC<HeaderProps> = ({
                     setViewMode('explore');
                     onSearchChange('');
                   }}
-                  className="text-3xl font-bold tracking-tighter text-neutral-900 dark:text-white select-none cursor-pointer hover:opacity-80 transition-opacity"
+                  className="text-2xl md:text-3xl font-bold tracking-tighter text-neutral-900 dark:text-white select-none cursor-pointer hover:opacity-80 transition-opacity"
               >
               Vista.
               </h1>
@@ -145,7 +146,7 @@ const Header: React.FC<HeaderProps> = ({
             ) : (
                 <button
                   onClick={openAuthModal}
-                  className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-xs hover:opacity-90 transition-opacity"
+                  className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-xs hover:opacity-90 transition-opacity whitespace-nowrap"
                 >
                   Giriş
                 </button>

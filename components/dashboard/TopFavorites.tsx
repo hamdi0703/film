@@ -170,7 +170,7 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({ favorites, collectionMovies
             <div 
                 key={`bonus-${index}`}
                 onClick={() => onSlotClick(index)}
-                className="relative w-20 h-28 md:w-24 md:h-36 rounded-xl overflow-hidden cursor-pointer group border border-neutral-200 dark:border-neutral-800 hover:border-indigo-500 transition-all"
+                className="relative w-20 h-28 lg:w-24 lg:h-36 rounded-xl overflow-hidden cursor-pointer group border border-neutral-200 dark:border-neutral-800 hover:border-indigo-500 transition-all"
             >
                 {movie && imageUrl ? (
                     <>
@@ -193,7 +193,7 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({ favorites, collectionMovies
             
             {/* Minimal Info for Bonus */}
             {movie && (
-                <div className="mt-2 text-center w-24">
+                <div className="mt-2 text-center w-20 lg:w-24">
                      <div className="text-[10px] font-bold truncate text-neutral-700 dark:text-neutral-300">{movie.title || movie.name}</div>
                      <div className="flex justify-center gap-2 mt-0.5 text-[9px] text-neutral-500">
                          <span>★ {movie.vote_average.toFixed(1)}</span>
@@ -217,18 +217,18 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({ favorites, collectionMovies
         </div>
 
         {/* Main Showcase Container */}
-        <div className="bg-neutral-50/50 dark:bg-neutral-900/30 p-4 md:p-8 rounded-[2rem] border border-neutral-200/50 dark:border-neutral-800/50 relative overflow-hidden backdrop-blur-sm">
+        <div className="bg-neutral-50/50 dark:bg-neutral-900/30 p-4 lg:p-8 rounded-[2rem] border border-neutral-200/50 dark:border-neutral-800/50 relative overflow-hidden backdrop-blur-sm">
              
              {/* Background Effects */}
              <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-64 bg-gradient-to-b ${type === 'movie' ? 'from-indigo-500/10' : 'from-purple-500/10'} to-transparent blur-3xl pointer-events-none rounded-full`}></div>
 
-             <div className="flex flex-col lg:flex-row items-start justify-between gap-10 relative z-10">
+             <div className="flex flex-col lg:flex-row items-center lg:items-start justify-between gap-10 relative z-10">
                  
                  {/* PODIUM SECTION (Left/Center) */}
                  <div className="w-full lg:w-auto flex justify-center items-end gap-2 md:gap-4 pb-4 mx-auto">
                      {/* Rank 2 (Left) */}
                      <div className="flex flex-col items-center justify-end">
-                         {renderCard(1, 2, "w-24 h-36 md:w-32 md:h-48", "w-28 md:w-40")}
+                         {renderCard(1, 2, "w-24 h-36 md:w-32 md:h-48", "w-24 md:w-32")}
                          {/* Pedestal visual optional */}
                          <div className="h-4 w-full mt-2 bg-gradient-to-t from-slate-200/50 to-transparent dark:from-slate-800/50 rounded-t-lg mx-2 opacity-50"></div>
                      </div>
@@ -238,13 +238,13 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({ favorites, collectionMovies
                          <div className="mb-2">
                              <svg className="w-6 h-6 text-yellow-500 animate-bounce" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                          </div>
-                         {renderCard(0, 1, "w-32 h-48 md:w-44 md:h-64 shadow-2xl", "w-40 md:w-56")}
+                         {renderCard(0, 1, "w-32 h-48 md:w-44 md:h-64 shadow-2xl", "w-32 md:w-44")}
                          <div className="h-8 w-full mt-2 bg-gradient-to-t from-amber-200/50 to-transparent dark:from-amber-900/40 rounded-t-lg mx-2 opacity-50"></div>
                      </div>
 
                      {/* Rank 3 (Right) */}
                      <div className="flex flex-col items-center justify-end">
-                         {renderCard(2, 3, "w-24 h-36 md:w-32 md:h-48", "w-28 md:w-40")}
+                         {renderCard(2, 3, "w-24 h-36 md:w-32 md:h-48", "w-24 md:w-32")}
                          <div className="h-2 w-full mt-2 bg-gradient-to-t from-orange-200/50 to-transparent dark:from-orange-900/40 rounded-t-lg mx-2 opacity-50"></div>
                      </div>
                  </div>

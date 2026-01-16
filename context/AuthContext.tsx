@@ -8,6 +8,7 @@ interface User {
   user_metadata?: {
     username?: string;
     avatar_url?: string;
+    is_blocked?: boolean; // Yeni alan: Engelleme durumu
   };
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
   signIn: (email: string, pass: string) => Promise<any>;
   signUp: (email: string, pass: string, username: string) => Promise<any>;
   signOut: () => Promise<void>;
+  updateUserStatus: (isBlocked: boolean) => Promise<void>; // Yeni fonksiyon
   // UI State for Modal
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
@@ -32,6 +34,7 @@ const MOCK_ADMIN_USER: User = {
   user_metadata: {
     username: 'Admin',
     avatar_url: null,
+    is_blocked: false,
   }
 };
 
@@ -55,8 +58,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
+        
         if (session?.user) {
-          setUser(session.user);
+          // Check block status on init
+          if (session.user.user_metadata?.is_blocked) {
+             await supabase.auth.signOut();
+             setUser(null);
+             showToast('Bu hesap erişime kapatılmıştır.', 'error');
+          } else {
+             setUser(session.user);
+          }
         }
       } catch (error) {
         // Suppress "Failed to fetch" if Supabase is not configured correctly yet
@@ -70,10 +81,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Setup Listener (Safe wrap)
     try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         // Only update if not using mock user
         if (!localStorage.getItem('vista_mock_user')) {
-           setUser(session?.user ?? null);
+           if (session?.user?.user_metadata?.is_blocked) {
+               await supabase.auth.signOut();
+               setUser(null);
+               // Avoid spamming toast on initial load, handled above
+           } else {
+               setUser(session?.user ?? null);
+           }
         }
         setLoading(false);
       });
@@ -81,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn("Auth listener hatası", e);
     }
-  }, []);
+  }, [showToast]);
 
   const signIn = async (email: string, pass: string) => {
     // --- ADMIN BYPASS ---
@@ -98,7 +115,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         password: pass,
       });
+      
       if (error) throw error;
+
+      // CHECK BLOCK STATUS IMMEDIATELY
+      if (data.user?.user_metadata?.is_blocked) {
+          await supabase.auth.signOut();
+          throw new Error('Bu hesap güvenlik nedeniyle engellenmiştir (Blocked: True).');
+      }
+
       showToast('Tekrar hoşgeldiniz!', 'success');
       return data;
     } catch (error: any) {
@@ -120,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             username: username,
+            is_blocked: false, // Default status
           },
         },
       });
@@ -161,6 +187,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUserStatus = async (isBlocked: boolean) => {
+      if (!user) return;
+      
+      // Handle Mock User
+      if (user.id.startsWith('mock-')) {
+          const updatedUser = { 
+              ...user, 
+              user_metadata: { ...user.user_metadata, is_blocked: isBlocked } 
+          };
+          setUser(updatedUser);
+          localStorage.setItem('vista_mock_user', JSON.stringify(updatedUser));
+          showToast(`Kullanıcı durumu güncellendi: ${isBlocked}`, 'info');
+          return;
+      }
+
+      try {
+          const { data, error } = await supabase.auth.updateUser({
+              data: { is_blocked: isBlocked }
+          });
+
+          if (error) throw error;
+
+          if (data.user) {
+              setUser(data.user);
+              showToast(`Hesap durumu: ${isBlocked ? 'Engellendi' : 'Aktif'}`, isBlocked ? 'error' : 'success');
+              
+              // If user blocked themselves, log them out shortly after
+              if (isBlocked) {
+                  setTimeout(() => signOut(), 2000);
+              }
+          }
+      } catch (error: any) {
+          console.error("Status update failed", error);
+          showToast('Durum güncellenemedi', 'error');
+      }
+  };
+
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
@@ -171,6 +234,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn, 
         signUp, 
         signOut,
+        updateUserStatus,
         isAuthModalOpen,
         openAuthModal,
         closeAuthModal

@@ -60,7 +60,7 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ movies }) => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in h-full">
       
       {/* 1. Global & User Rating Split Card */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-5 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 md:p-5 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm">
         <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ortalama Puanlar</span>
         <div className="mt-3 flex items-center justify-between">
             
@@ -70,7 +70,7 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ movies }) => {
                     <svg className="w-5 h-5 text-yellow-400 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                         <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                     </svg>
-                    <span className="text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">
+                    <span className="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">
                         {stats.avgTmdbRating}
                     </span>
                 </div>
@@ -85,7 +85,7 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ movies }) => {
                  {stats.avgUserRating ? (
                     <>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">
+                            <span className="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">
                                 {stats.avgUserRating}
                             </span>
                              <svg className="w-5 h-5 text-blue-500 fill-current" viewBox="0 0 24 24">
@@ -97,7 +97,7 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ movies }) => {
                  ) : (
                     <>
                          <div className="flex items-center gap-1.5 opacity-40">
-                            <span className="text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">--</span>
+                            <span className="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-white tracking-tight">--</span>
                              <svg className="w-5 h-5 text-neutral-400 fill-current" viewBox="0 0 24 24">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                             </svg>
@@ -110,15 +110,15 @@ const StatsOverview: React.FC<StatsOverviewProps> = ({ movies }) => {
       </div>
 
       {/* 2. Total Watch Time */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-5 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm relative overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl p-4 md:p-5 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-sm relative overflow-hidden">
         <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider relative z-10">Maraton Süresi</span>
         <div className="mt-2 relative z-10">
             {stats.watchTime.totalMinutes > 0 ? (
-                <div className="flex items-baseline gap-1 text-neutral-900 dark:text-white">
+                <div className="flex items-baseline gap-1 text-neutral-900 dark:text-white flex-wrap">
                     {stats.watchTime.days > 0 && (
-                        <><span className="text-3xl font-bold tracking-tight">{stats.watchTime.days}</span><span className="text-xs text-neutral-500 mr-2 font-medium">gün</span></>
+                        <><span className="text-2xl md:text-3xl font-bold tracking-tight">{stats.watchTime.days}</span><span className="text-xs text-neutral-500 mr-2 font-medium">gün</span></>
                     )}
-                    <span className="text-3xl font-bold tracking-tight">{stats.watchTime.hours}</span><span className="text-xs text-neutral-500 font-medium">saat</span>
+                    <span className="text-2xl md:text-3xl font-bold tracking-tight">{stats.watchTime.hours}</span><span className="text-xs text-neutral-500 font-medium">saat</span>
                 </div>
             ) : (
                 <span className="text-sm text-neutral-400">Hesaplanamıyor</span>
