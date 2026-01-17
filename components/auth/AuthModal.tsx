@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -9,7 +9,7 @@ interface AuthModalProps {
 type AuthView = 'LOGIN' | 'REGISTER';
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp } = useAuth();
   const { showToast } = useToast();
   
   const [view, setView] = useState<AuthView>('LOGIN');
@@ -19,15 +19,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-
-  // --- FAILSAFE: Auto-close if user is detected ---
-  // If the sign-in promise hangs but the auth listener updates the user state,
-  // this ensures the modal closes and doesn't get stuck on "Loading".
-  useEffect(() => {
-    if (user) {
-        onClose();
-    }
-  }, [user, onClose]);
 
   const getTurkishErrorMessage = (msg: string) => {
     if (!msg) return 'Bir hata oluştu.';
@@ -46,7 +37,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     try {
       if (view === 'LOGIN') {
         await signIn(email, password);
-        // onClose() will be triggered by the useEffect above when user state updates
+        // Login başarılıysa anında kapat (useEffect beklemek yerine)
+        onClose();
       } else if (view === 'REGISTER') {
         await signUp(email, password, username);
         setView('LOGIN'); 
@@ -63,13 +55,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       switch(view) {
           case 'LOGIN': return 'Tekrar Hoşgeldiniz';
           case 'REGISTER': return 'Aramıza Katılın';
-      }
-  };
-
-  const getDescription = () => {
-      switch(view) {
-          case 'LOGIN': return 'Film yolculuğunuza kaldığınız yerden devam edin.';
-          case 'REGISTER': return 'Koleksiyonunuzu oluşturun ve düşüncelerinizi paylaşın.';
       }
   };
 
@@ -93,7 +78,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 {getTitle()}
             </h2>
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                {getDescription()}
+                {view === 'LOGIN' ? 'Film yolculuğunuza kaldığınız yerden devam edin.' : 'Koleksiyonunuzu oluşturun ve düşüncelerinizi paylaşın.'}
             </p>
         </div>
 

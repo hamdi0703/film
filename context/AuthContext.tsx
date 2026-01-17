@@ -15,8 +15,8 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, pass: string) => Promise<any>;
-  signUp: (email: string, pass: string, username: string) => Promise<any>;
+  signIn: (email: string, pass: string) => Promise<void>;
+  signUp: (email: string, pass: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (username: string, avatarUrl: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -42,86 +42,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
   
-  // Helper to check if user is blocked in DB
-  const checkBlockStatus = async (userId: string): Promise<boolean> => {
-    // If it's a mock user, never blocked by DB
-    if (userId.startsWith('mock-')) return false;
+  // Arka planda çalışacak güvenlik kontrolü (UI'ı bloklamaz)
+  const verifyUserSecurity = async (userId: string) => {
+    if (userId.startsWith('mock-')) return;
 
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('is_blocked')
         .eq('id', userId)
-        .maybeSingle(); 
+        .maybeSingle();
       
-      if (error) {
-          // If profile doesn't exist yet (new user), not blocked
-          return false;
+      if (!error && data?.is_blocked) {
+          await supabase.auth.signOut();
+          setUser(null);
+          showToast('Hesabınız erişime kapatılmıştır.', 'error');
       }
-      return data?.is_blocked || false;
     } catch (e) {
-      return false;
+      console.error("Security check failed:", e);
     }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    // 1. Initial Session Check
-    const init = async () => {
+    const initializeAuth = async () => {
+      // 1. Mock Kullanıcı Kontrolü
       const mock = localStorage.getItem('tria_mock_user');
-      if (mock) { 
-          if(mounted) { setUser(JSON.parse(mock)); setLoading(false); }
-          return; 
+      if (mock) {
+          if(mounted) {
+            setUser(JSON.parse(mock));
+            setLoading(false);
+          }
+          return;
       }
 
+      // 2. Supabase Oturumu Kontrolü
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-           const isBlocked = await checkBlockStatus(session.user.id);
-           if(isBlocked) {
-               await supabase.auth.signOut();
-               if(mounted) showToast('Bu hesap engellenmiştir.', 'error');
-           } else {
-               if(mounted) setUser({ ...session.user, is_blocked: false });
-           }
+        
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user); // UI'ı hemen güncelle
+            verifyUserSecurity(session.user.id); // Arka planda kontrol et
+          } else {
+            setUser(null);
+          }
         }
-      } catch (e) { 
-          console.warn("Auth init failed", e); 
-      } finally { 
-          if(mounted) setLoading(false); 
+      } catch (error) {
+        console.error("Auth init error:", error);
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
-    init();
 
-    // 2. Listen for Auth Changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    initializeAuth();
+
+    // 3. Auth Listener (Giriş/Çıkış olaylarını dinle)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (!mounted) return;
         
-        // If we are currently using a mock user, DO NOT let Supabase overwrite it unless we explicitly cleared it.
+        // Mock kullanıcı varsa Supabase eventlerini yoksay
         if (localStorage.getItem('tria_mock_user')) return;
-        
-        try {
-            if (session?.user) {
-                // If user changed or just logged in, verify block status
-                const isBlocked = await checkBlockStatus(session.user.id);
-                if (isBlocked) {
-                    await supabase.auth.signOut();
-                    if(mounted) {
-                        setUser(null);
-                        showToast('Hesabınız erişime kapatılmıştır.', 'error');
-                    }
-                } else {
-                    if(mounted) setUser({ ...session.user, is_blocked: false });
-                }
-            } else {
-                if(mounted) setUser(null);
-            }
-        } catch (err) {
-            console.error("Auth change error:", err);
-        } finally {
-            if(mounted) setLoading(false);
+
+        if (session?.user) {
+            setUser(session.user);
+            // Login sonrası hemen blok kontrolü yapma, zaten init veya signin içinde tetiklenebilir.
+            // Ancak session yenilemelerinde güvenlik için hafif bir kontrol iyidir.
+        } else {
+            setUser(null);
         }
+        setLoading(false);
     });
 
     return () => {
@@ -131,89 +122,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [showToast]);
 
   const signIn = async (email: string, pass: string) => {
-    // 1. Mock Admin Login
+    // Mock Login
     if (email === 'admin' && pass === 'admin') {
-      setUser(MOCK_ADMIN_USER);
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
-      return { user: MOCK_ADMIN_USER };
+      setUser(MOCK_ADMIN_USER);
+      showToast('Giriş başarılı (Admin)', 'success');
+      return;
     }
     
-    // 2. Real Login - CRITICAL FIX:
-    // If we were previously a mock user, we MUST clear that flag so the listener works.
+    // Gerçek Login
     localStorage.removeItem('tria_mock_user');
-
-    // Attempt Login
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    
     if (error) throw error;
-
-    showToast('Giriş başarılı!', 'success');
-    return data;
+    if (data.user) {
+      setUser(data.user); // State'i anında güncelle
+      showToast('Giriş başarılı!', 'success');
+      verifyUserSecurity(data.user.id); // Blok kontrolünü arkadan yap
+    }
   };
 
   const signUp = async (email: string, pass: string, username: string) => {
     localStorage.removeItem('tria_mock_user');
-    
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email, password: pass, options: { data: { username } }
     });
     if (error) throw error;
     showToast('Kayıt başarılı! Giriş yapabilirsiniz.', 'success');
-    return data;
   };
 
   const signOut = async () => {
+    // Temizlik
     localStorage.removeItem('tria_collections');
     localStorage.removeItem('tria_user_reviews');
+    localStorage.removeItem('tria_mock_user');
     
-    // Clear mock data
-    if (localStorage.getItem('tria_mock_user')) {
-       localStorage.removeItem('tria_mock_user');
-       setUser(null);
-       showToast('Çıkış yapıldı', 'info');
-       return;
+    if (!user?.id.startsWith('mock-')) {
+        await supabase.auth.signOut();
     }
-
-    await supabase.auth.signOut();
+    
     setUser(null); 
     showToast('Çıkış yapıldı', 'info');
   };
 
   const updateProfile = async (username: string, avatarUrl: string) => {
     if (!user) return;
+    
+    // Mock Update
     if (user.id.startsWith('mock-')) {
         const upd = { ...user, user_metadata: { ...user.user_metadata, username, avatar_url: avatarUrl } };
-        setUser(upd); localStorage.setItem('tria_mock_user', JSON.stringify(upd));
-        showToast('Profil güncellendi (Mock)', 'success');
+        setUser(upd); 
+        localStorage.setItem('tria_mock_user', JSON.stringify(upd));
+        showToast('Profil güncellendi', 'success');
         return;
     }
 
-    const { error: authError } = await supabase.auth.updateUser({
+    // Real Update
+    const { error } = await supabase.auth.updateUser({
       data: { username, avatar_url: avatarUrl }
     });
-    if (authError) throw authError;
+    if (error) throw error;
 
-    // Try to update profiles table, but don't crash if it fails (lazy sync)
-    try {
-        await supabase.from('profiles').update({
-        username,
-        avatar_url: avatarUrl
-        }).eq('id', user.id);
-    } catch(e) { console.warn("Profile table update skipped"); }
+    // Profil tablosunu güncelle (Fire & Forget)
+    supabase.from('profiles').update({ username, avatar_url: avatarUrl }).eq('id', user.id).then();
 
+    // Local state güncelle
     setUser(prev => prev ? ({
         ...prev,
         user_metadata: { ...prev.user_metadata, username, avatar_url: avatarUrl }
     }) : null);
 
-    showToast('Profil başarıyla güncellendi', 'success');
+    showToast('Profil güncellendi', 'success');
   };
 
   const updatePassword = async (password: string) => {
-      if (!user) return;
-      if (user.id.startsWith('mock-')) {
-          showToast('Mock kullanıcı şifresi değiştirilemez', 'info');
-          return;
-      }
+      if (user?.id.startsWith('mock-')) return;
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       showToast('Şifreniz güncellendi', 'success');
@@ -221,45 +204,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteAccount = async () => {
     if (!user) return;
-    if (user.id.startsWith('mock-')) {
-        signOut();
-        return;
-    }
-
     try {
-        const { error } = await supabase.rpc('delete_own_account');
-        if (error) throw error;
+        if (!user.id.startsWith('mock-')) {
+            const { error } = await supabase.rpc('delete_own_account');
+            if (error) throw error;
+        }
         await signOut();
-        showToast('Hesabınız kalıcı olarak silindi.', 'info');
+        showToast('Hesabınız silindi.', 'info');
     } catch (e) {
         console.error(e);
-        // Fallback for UI
-        await signOut();
-        showToast('Hesap silindi.', 'info');
+        await signOut(); // Hata olsa bile çıkış yap
     }
   };
 
   const updateUserStatus = async (isBlocked: boolean) => {
       if (!user) return;
+      // Mock status update
       if (user.id.startsWith('mock-')) {
           const upd = { ...user, is_blocked: isBlocked };
           setUser(upd); localStorage.setItem('tria_mock_user', JSON.stringify(upd));
           return;
       }
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_blocked: isBlocked })
-        .eq('id', user.id);
+      
+      const { error } = await supabase.from('profiles').update({ is_blocked: isBlocked }).eq('id', user.id);
 
       if (error) { 
-          showToast('Güncelleme başarısız', 'error'); 
+          showToast('İşlem başarısız', 'error'); 
           return; 
       }
+
       if (isBlocked) {
-          showToast('Hesabınızı dondurdunuz.', 'error');
-          setTimeout(() => signOut(), 2000);
+          showToast('Hesap donduruldu, çıkış yapılıyor...', 'info');
+          setTimeout(signOut, 1500);
       } else {
-          showToast('Hesap aktif', 'success');
+          showToast('Hesap aktif edildi', 'success');
           setUser({ ...user, is_blocked: false });
       }
   };
