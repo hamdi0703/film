@@ -9,7 +9,7 @@ interface MovieCardProps {
   onToggleSelect?: (movie: Movie) => void;
   onClick?: (movie: Movie) => void;
   allGenres?: Genre[];
-  mediaType?: 'movie' | 'tv'; // Explicit type hint for customized rendering
+  mediaType?: 'movie' | 'tv'; 
 }
 
 const MovieCard: React.FC<MovieCardProps> = ({ 
@@ -70,7 +70,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
   return (
     <div className="group relative w-full aspect-[2/3] perspective-1000 animate-fade-in">
       
-      {/* AMBIENT GLOW */}
+      {/* AMBIENT GLOW - Performance optimization: Only show on hover/load to reduce paint costs */}
       <div 
         className={`absolute inset-0 bg-cover bg-center blur-xl opacity-0 transition-opacity duration-500 rounded-3xl ${isLoaded ? 'group-hover:opacity-40 dark:group-hover:opacity-30' : ''}`}
         style={{ backgroundImage: `url(${imageUrl})`, transform: 'scale(0.95) translateY(10px)' }}
@@ -93,15 +93,14 @@ const MovieCard: React.FC<MovieCardProps> = ({
             src={imageUrl}
             alt={title}
             loading="lazy"
+            decoding="async" 
             className={`w-full h-full object-cover transition-all duration-700 ease-in-out ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
             onLoad={() => setIsLoaded(true)}
         />
 
-        {/* --- NEW: HIGH CONTRAST USER INDICATORS (Floating Pills) --- */}
+        {/* --- INDICATORS --- */}
         {review && (
             <div className="absolute top-2.5 left-2.5 z-30 flex flex-col gap-2 items-start animate-fade-in">
-                
-                {/* Rating Pill - Always visible clearly */}
                 {review.rating > 0 && (
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-xl">
                         <svg className="w-3 h-3 text-blue-400 fill-current" viewBox="0 0 24 24">
@@ -110,8 +109,6 @@ const MovieCard: React.FC<MovieCardProps> = ({
                         <span className="text-xs font-bold text-white leading-none pt-0.5">{review.rating}</span>
                     </div>
                 )}
-                
-                {/* Review Indicator - Quill Icon */}
                 {hasComment && (
                     <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white text-neutral-900 shadow-xl border border-neutral-200" title="İnceleme Yazıldı">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -122,13 +119,14 @@ const MovieCard: React.FC<MovieCardProps> = ({
             </div>
         )}
 
-        {/* Selection Heart (Top Right) */}
+        {/* Selection Heart */}
         {onToggleSelect && (
             <button 
             onClick={(e) => {
                 e.stopPropagation();
                 onToggleSelect(movie);
             }}
+            aria-label={isSelected ? `${title} favorilerden çıkar` : `${title} favorilere ekle`}
             className={`absolute top-2.5 right-2.5 z-30 p-2 rounded-full backdrop-blur-md transition-all duration-300 shadow-sm border border-transparent ${
                 isSelected 
                 ? 'bg-white text-red-500 scale-100 opacity-100 shadow-red-500/20' 
@@ -156,7 +154,6 @@ const MovieCard: React.FC<MovieCardProps> = ({
             </h3>
             
             <div className="flex items-center gap-2 text-[11px] font-medium text-neutral-300 mb-1.5 opacity-90">
-                {/* Variant 1: MOVIE Metadata */}
                 {!isTv && (
                     <>
                         {year && <span>{year}</span>}
@@ -165,7 +162,6 @@ const MovieCard: React.FC<MovieCardProps> = ({
                     </>
                 )}
 
-                {/* Variant 2: TV Metadata */}
                 {isTv && (
                     <>
                         {tvMetaText && <span className="bg-white/20 px-1.5 py-0.5 rounded text-white">{tvMetaText}</span>}
@@ -180,7 +176,6 @@ const MovieCard: React.FC<MovieCardProps> = ({
             </div>
 
             <div className="flex items-center gap-3 opacity-90">
-                {/* TMDB Rating */}
                 <div className="flex items-center gap-1" title="TMDB Puanı">
                     <svg className="w-3.5 h-3.5 text-yellow-400 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                         <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
@@ -194,4 +189,7 @@ const MovieCard: React.FC<MovieCardProps> = ({
   );
 };
 
-export default MovieCard;
+// Use React.memo to prevent unnecessary re-renders in grid lists
+// Custom comparison function is usually not needed unless props are complex objects
+// Default shallow compare handles primitive props (id, title) and function references (if stable) well.
+export default React.memo(MovieCard);

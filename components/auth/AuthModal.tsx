@@ -61,6 +61,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
       <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-slide-in-up transition-all">
         <button 
           onClick={onClose}
+          aria-label="Kapat"
           className="absolute top-4 right-4 p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
         >
           <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -72,7 +73,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
                 {getTitle()}
             </h2>
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
                 {getDescription()}
             </p>
         </div>
@@ -80,8 +81,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
             {view === 'REGISTER' && (
                 <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Kullanıcı Adı</label>
+                    <label htmlFor="auth-username" className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide mb-2">Kullanıcı Adı</label>
                     <input 
+                        id="auth-username"
                         type="text" 
                         required
                         value={username}
@@ -93,8 +95,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             )}
             
             <div>
-                <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Email</label>
+                <label htmlFor="auth-email" className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide mb-2">Email</label>
                 <input 
+                    id="auth-email"
                     type="email" 
                     required
                     value={email}
@@ -106,9 +109,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
             <div>
                 <div className="flex justify-between mb-2">
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide">Şifre</label>
+                    <label htmlFor="auth-password" className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">Şifre</label>
                 </div>
                 <input 
+                    id="auth-password"
                     type="password" 
                     required
                     minLength={6}
@@ -130,7 +134,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         </form>
 
         <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
                 {view === 'LOGIN' ? 'Hesabınız yok mu?' : 'Zaten hesabınız var mı?'}
                 <button 
                     onClick={() => setView(view === 'LOGIN' ? 'REGISTER' : 'LOGIN')}

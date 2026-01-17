@@ -88,6 +88,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             {!isCreating ? (
                 <button 
                     onClick={handleCreateClick}
+                    aria-label="Yeni Liste Oluştur"
                     className="p-2 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:border-neutral-400 transition-colors"
                     title="Yeni Liste Oluştur"
                 >
@@ -103,14 +104,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                         value={newListName}
                         onChange={e => setNewListName(e.target.value)}
                         placeholder="Liste adı..."
+                        aria-label="Liste Adı"
                         className="px-3 py-2 w-32 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-sm outline-none border border-neutral-300 dark:border-neutral-700"
                     />
-                    <button type="submit" className="text-green-600 hover:text-green-700">
+                    <button type="submit" aria-label="Kaydet" className="text-green-600 hover:text-green-700">
                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                     </button>
-                    <button type="button" onClick={() => setIsCreating(false)} className="text-red-500 hover:text-red-600">
+                    <button type="button" aria-label="İptal" onClick={() => setIsCreating(false)} className="text-red-500 hover:text-red-600">
                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -125,6 +127,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             {movieCount > 0 && (
                  <button
                  onClick={handleShareClick}
+                 aria-label="Listeyi Paylaş"
                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 transition-all shadow-md"
              >
                  {copied ? (
@@ -151,6 +154,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     onClick={() => onDeleteCollection(activeCollectionId)}
                     className="p-2 text-neutral-400 hover:text-red-500 transition-colors"
                     title="Bu listeyi sil"
+                    aria-label="Bu listeyi sil"
                 >
                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

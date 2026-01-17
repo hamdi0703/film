@@ -33,6 +33,7 @@ const DetailHero: React.FC<DetailHeroProps> = ({ movie, onBack, onToggleCollecti
         <div className="absolute top-0 left-0 right-0 p-4 md:p-8 flex justify-between items-center z-50">
             <button 
                 onClick={onBack}
+                aria-label="Geri Dön"
                 className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/40 transition-colors"
             >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

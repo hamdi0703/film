@@ -7,11 +7,14 @@ const BASE_URL = 'https://api.themoviedb.org/3';
 // SYSTEM CONFIGURATION
 const SYSTEM_API_KEY = '84fedfba42a08ab1365b8261d7ff276d';
 
-export class TmdbService {
-  // No longer requires an instance variable for apiKey since we use the system constant
+// GLOBAL STATIC CACHE
+const REQUEST_CACHE = new Map<string, { data: any, timestamp: number }>();
+const CACHE_DURATION = 1000 * 60 * 5; // 5 minutes cache
 
+export class TmdbService {
+  
   constructor() {
-    // Constructor is now empty or can be used for other init logic
+    // Constructor logic if needed
   }
 
   // Helper: Sleep function
@@ -28,6 +31,13 @@ export class TmdbService {
     });
 
     const url = `${BASE_URL}${endpoint}?${queryParams.toString()}`;
+
+    // 1. CHECK CACHE
+    const cacheKey = url;
+    const cached = REQUEST_CACHE.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+        return cached.data as T;
+    }
 
     try {
       const response = await fetch(url);
@@ -47,7 +57,15 @@ export class TmdbService {
         throw new Error(`TMDB API Error: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      // 2. SAVE TO CACHE
+      // Don't cache search queries or specific movie details as heavily, but generalized lists are safe
+      if (!endpoint.includes('/search')) {
+          REQUEST_CACHE.set(cacheKey, { data, timestamp: Date.now() });
+      }
+
+      return data;
 
     } catch (error: any) {
         if (error.message === 'Failed to fetch' && retries > 0) {
@@ -77,6 +95,7 @@ export class TmdbService {
       }
     }
 
+    // Search endpoints are typically not cached aggressively in the method above to ensure freshness
     return this.fetchFromApi<TmdbResponse>(`/search/${type}`, params);
   }
 

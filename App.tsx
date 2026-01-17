@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { ReviewProvider } from './context/ReviewContext';
@@ -8,11 +8,22 @@ import { TmdbService } from './services/tmdbService';
 import { Movie, Genre, MediaType } from './types';
 import Header from './components/Header';
 import ProfileModal, { ProfileTab } from './components/ProfileModal';
-import MovieDetailView from './components/MovieDetailView';
-import ExploreView from './components/views/ExploreView';
-import DashboardView from './components/views/DashboardView';
 import BottomNav from './components/BottomNav';
 import ErrorBoundary from './components/ErrorBoundary';
+import { supabase } from './services/supabaseClient';
+import { DetailSkeleton } from './components/skeletons/Skeletons'; // Reusing existing skeleton
+
+// --- PERFORMANCE: Code Splitting (Lazy Loading) ---
+const MovieDetailView = lazy(() => import('./components/MovieDetailView'));
+const ExploreView = lazy(() => import('./components/views/ExploreView'));
+const DashboardView = lazy(() => import('./components/views/DashboardView'));
+
+// Simple Loading Spinner for View Transitions
+const ViewLoader = () => (
+  <div className="flex items-center justify-center min-h-[50vh]">
+    <div className="w-10 h-10 border-4 border-neutral-200 border-t-indigo-600 rounded-full animate-spin"></div>
+  </div>
+);
 
 const AppContent: React.FC = () => {
   // --- View State ---
@@ -55,6 +66,35 @@ const AppContent: React.FC = () => {
     }
   }, [loadSharedList, loadCloudList]);
 
+  // LISTEN FOR PASSWORD RECOVERY
+  useEffect(() => {
+    // 1. Event Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        showToast('Lütfen yeni şifrenizi belirleyin.', 'info');
+        setProfileInitialTab('SECURITY');
+        setIsProfileOpen(true);
+      }
+    });
+
+    // 2. Manual Hash Check (Fallback)
+    const checkRecoveryHash = () => {
+        const hash = window.location.hash;
+        if (hash && hash.includes('type=recovery')) {
+             setTimeout(() => {
+                showToast('Şifre sıfırlama modu algılandı.', 'info');
+                setProfileInitialTab('SECURITY');
+                setIsProfileOpen(true);
+             }, 500);
+        }
+    };
+    checkRecoveryHash();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [showToast]);
+
   const handleMovieSelect = (movie: Movie) => {
       const type = (movie.first_air_date || movie.name) ? 'tv' : 'movie';
       setSelectedMediaType(type);
@@ -71,7 +111,6 @@ const AppContent: React.FC = () => {
 
   const handleCloseProfile = () => {
       setIsProfileOpen(false);
-      // Reset tab to default after closing
       setTimeout(() => setProfileInitialTab('PROFILE'), 300);
   };
 
@@ -79,11 +118,13 @@ const AppContent: React.FC = () => {
   if (selectedMovie) {
     return (
       <div className="min-h-screen font-sans">
-         <MovieDetailView 
-            movieId={selectedMovie.id}
-            type={selectedMediaType} 
-            onBack={() => setSelectedMovie(null)}
-         />
+         <Suspense fallback={<DetailSkeleton />}>
+            <MovieDetailView 
+                movieId={selectedMovie.id}
+                type={selectedMediaType} 
+                onBack={() => setSelectedMovie(null)}
+            />
+         </Suspense>
       </div>
     );
   }
@@ -120,18 +161,20 @@ const AppContent: React.FC = () => {
       
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <ErrorBoundary>
-            {viewMode === 'dashboard' ? (
-                <DashboardView 
-                    onSelectMovie={handleMovieSelect}
-                    genres={genres}
-                />
-            ) : (
-                <ExploreView 
-                    searchQuery={searchQuery}
-                    genres={genres}
-                    onSelectMovie={handleMovieSelect}
-                />
-            )}
+            <Suspense fallback={<ViewLoader />}>
+                {viewMode === 'dashboard' ? (
+                    <DashboardView 
+                        onSelectMovie={handleMovieSelect}
+                        genres={genres}
+                    />
+                ) : (
+                    <ExploreView 
+                        searchQuery={searchQuery}
+                        genres={genres}
+                        onSelectMovie={handleMovieSelect}
+                    />
+                )}
+            </Suspense>
         </ErrorBoundary>
       </main>
 

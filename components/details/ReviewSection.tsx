@@ -70,6 +70,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
+                    aria-label={`${star} Yıldız Ver`}
                     className={`transition-all duration-200 hover:scale-125 ${
                         star <= rating 
                         ? 'text-yellow-400' 
@@ -179,8 +180,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
             </div>
 
             <div className="mb-4">
-                 <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Düşünceleriniz</label>
+                 <label htmlFor="review-comment" className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Düşünceleriniz</label>
                  <textarea 
+                    id="review-comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     placeholder="Bu film hakkında ne düşünüyorsunuz? Unutulmaz sahneler, oyunculuklar..."
@@ -193,6 +195,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                  <button
                     type="button"
                     onClick={() => setHasSpoiler(!hasSpoiler)}
+                    aria-label={hasSpoiler ? 'Spoiler işaretini kaldır' : 'Spoiler olarak işaretle'}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all border ${
                         hasSpoiler 
                         ? 'bg-red-500 text-white border-red-500 shadow-md shadow-red-500/20' 
