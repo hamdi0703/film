@@ -12,6 +12,7 @@ import MovieDetailView from './components/MovieDetailView';
 import ExploreView from './components/views/ExploreView';
 import DashboardView from './components/views/DashboardView';
 import BottomNav from './components/BottomNav';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   // --- View State ---
@@ -43,12 +44,10 @@ const AppContent: React.FC = () => {
     const cloudListId = params.get('list');
 
     if (cloudListId) {
-        // Load persistent cloud list
         loadCloudList(cloudListId).then(() => {
             setViewMode('dashboard');
         });
     } else if (sharedIds) {
-        // Load legacy/guest shared list
         loadSharedList(sharedIds.split(',')).then(() => {
            setViewMode('dashboard');
         });
@@ -113,18 +112,20 @@ const AppContent: React.FC = () => {
       />
       
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        {viewMode === 'dashboard' ? (
-            <DashboardView 
-                onSelectMovie={handleMovieSelect}
-                genres={genres}
-            />
-        ) : (
-            <ExploreView 
-                searchQuery={searchQuery}
-                genres={genres}
-                onSelectMovie={handleMovieSelect}
-            />
-        )}
+        <ErrorBoundary>
+            {viewMode === 'dashboard' ? (
+                <DashboardView 
+                    onSelectMovie={handleMovieSelect}
+                    genres={genres}
+                />
+            ) : (
+                <ExploreView 
+                    searchQuery={searchQuery}
+                    genres={genres}
+                    onSelectMovie={handleMovieSelect}
+                />
+            )}
+        </ErrorBoundary>
       </main>
 
       <BottomNav 
@@ -143,7 +144,9 @@ const App: React.FC = () => {
         <AuthProvider>
           <ReviewProvider>
             <CollectionProvider>
-              <AppContent />
+                <ErrorBoundary fullHeight>
+                   <AppContent />
+                </ErrorBoundary>
             </CollectionProvider>
           </ReviewProvider>
         </AuthProvider>
