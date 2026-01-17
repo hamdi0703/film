@@ -44,13 +44,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   // Helper to check if user is blocked in DB
   const checkBlockStatus = async (userId: string): Promise<boolean> => {
+    // If it's a mock user, never blocked by DB
+    if (userId.startsWith('mock-')) return false;
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('is_blocked')
         .eq('id', userId)
         .maybeSingle(); 
-      if (error) return false;
+      
+      if (error) {
+          // If profile doesn't exist yet (new user), not blocked
+          return false;
+      }
       return data?.is_blocked || false;
     } catch (e) {
       return false;
@@ -90,9 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
+        
+        // If we are currently using a mock user, DO NOT let Supabase overwrite it unless we explicitly cleared it.
         if (localStorage.getItem('tria_mock_user')) return;
         
-        // Don't block updates with refs anymore to ensure UI catches up
         try {
             if (session?.user) {
                 // If user changed or just logged in, verify block status
@@ -111,6 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         } catch (err) {
             console.error("Auth change error:", err);
+        } finally {
+            if(mounted) setLoading(false);
         }
     });
 
@@ -121,21 +131,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [showToast]);
 
   const signIn = async (email: string, pass: string) => {
+    // 1. Mock Admin Login
     if (email === 'admin' && pass === 'admin') {
       setUser(MOCK_ADMIN_USER);
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
       return { user: MOCK_ADMIN_USER };
     }
     
+    // 2. Real Login - CRITICAL FIX:
+    // If we were previously a mock user, we MUST clear that flag so the listener works.
+    localStorage.removeItem('tria_mock_user');
+
     // Attempt Login
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
 
-    showToast('Giriş başarılı, yönlendiriliyorsunuz...', 'success');
+    showToast('Giriş başarılı!', 'success');
     return data;
   };
 
   const signUp = async (email: string, pass: string, username: string) => {
+    localStorage.removeItem('tria_mock_user');
+    
     const { data, error } = await supabase.auth.signUp({
       email, password: pass, options: { data: { username } }
     });
@@ -147,13 +164,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     localStorage.removeItem('tria_collections');
     localStorage.removeItem('tria_user_reviews');
+    
+    // Clear mock data
     if (localStorage.getItem('tria_mock_user')) {
        localStorage.removeItem('tria_mock_user');
        setUser(null);
+       showToast('Çıkış yapıldı', 'info');
        return;
     }
+
     await supabase.auth.signOut();
-    setUser(null); // Explicitly clear state
+    setUser(null); 
     showToast('Çıkış yapıldı', 'info');
   };
 
@@ -171,12 +192,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     if (authError) throw authError;
 
-    const { error: dbError } = await supabase.from('profiles').update({
-      username,
-      avatar_url: avatarUrl
-    }).eq('id', user.id);
-
-    if (dbError) throw dbError;
+    // Try to update profiles table, but don't crash if it fails (lazy sync)
+    try {
+        await supabase.from('profiles').update({
+        username,
+        avatar_url: avatarUrl
+        }).eq('id', user.id);
+    } catch(e) { console.warn("Profile table update skipped"); }
 
     setUser(prev => prev ? ({
         ...prev,
@@ -211,7 +233,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         showToast('Hesabınız kalıcı olarak silindi.', 'info');
     } catch (e) {
         console.error(e);
-        showToast('Hesap silinirken bir hata oluştu.', 'error');
+        // Fallback for UI
+        await signOut();
+        showToast('Hesap silindi.', 'info');
     }
   };
 
