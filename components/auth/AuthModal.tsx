@@ -20,6 +20,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
 
+  const getTurkishErrorMessage = (msg: string) => {
+    if (!msg) return 'Bir hata oluştu.';
+    if (msg.includes('Invalid login credentials')) return 'Email veya şifre hatalı.';
+    if (msg.includes('Email not confirmed')) return 'Lütfen önce email adresinizi doğrulayın.';
+    if (msg.includes('User already registered')) return 'Bu email ile zaten bir kullanıcı var.';
+    if (msg.includes('Password should be at least')) return 'Şifre çok kısa (en az 6 karakter).';
+    if (msg.includes('rate limit')) return 'Çok fazla deneme yaptınız, biraz bekleyin.';
+    return msg;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -30,11 +40,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         onClose();
       } else if (view === 'REGISTER') {
         await signUp(email, password, username);
-        // Don't close immediately on register, maybe wait for email confirmation or auto-login logic
+        // Don't close immediately on register, allow user to switch to login or see confirmation msg
         setView('LOGIN'); 
       }
     } catch (error: any) {
-      showToast(error.message || 'Bir hata oluştu', 'error');
+      const msg = getTurkishErrorMessage(error.message);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }

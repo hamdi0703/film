@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useToast } from './ToastContext';
 
@@ -42,8 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
   
-  const isProcessingAuth = useRef(false);
-
+  // Helper to check if user is blocked in DB
   const checkBlockStatus = async (userId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
@@ -61,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    // 1. Initial Session Check
     const init = async () => {
       const mock = localStorage.getItem('tria_mock_user');
       if (mock) { 
@@ -87,14 +87,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (ev, session) => {
+    // 2. Listen for Auth Changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
         if (localStorage.getItem('tria_mock_user')) return;
-        if (isProcessingAuth.current) return;
         
-        isProcessingAuth.current = true;
+        // Don't block updates with refs anymore to ensure UI catches up
         try {
             if (session?.user) {
+                // If user changed or just logged in, verify block status
                 const isBlocked = await checkBlockStatus(session.user.id);
                 if (isBlocked) {
                     await supabase.auth.signOut();
@@ -108,8 +109,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else {
                 if(mounted) setUser(null);
             }
-        } finally {
-            isProcessingAuth.current = false;
+        } catch (err) {
+            console.error("Auth change error:", err);
         }
     });
 
@@ -125,9 +126,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
       return { user: MOCK_ADMIN_USER };
     }
+    
+    // Attempt Login
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
-    showToast('Giriş yapılıyor...', 'info');
+
+    showToast('Giriş başarılı, yönlendiriliyorsunuz...', 'success');
     return data;
   };
 
@@ -149,6 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
        return;
     }
     await supabase.auth.signOut();
+    setUser(null); // Explicitly clear state
     showToast('Çıkış yapıldı', 'info');
   };
 
@@ -161,13 +166,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
     }
 
-    // 1. Update Auth Metadata
     const { error: authError } = await supabase.auth.updateUser({
       data: { username, avatar_url: avatarUrl }
     });
     if (authError) throw authError;
 
-    // 2. Update Public Profiles Table
     const { error: dbError } = await supabase.from('profiles').update({
       username,
       avatar_url: avatarUrl
@@ -175,7 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (dbError) throw dbError;
 
-    // 3. Update Local State
     setUser(prev => prev ? ({
         ...prev,
         user_metadata: { ...prev.user_metadata, username, avatar_url: avatarUrl }
@@ -203,11 +205,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-        // Call RPC function to allow self-deletion
         const { error } = await supabase.rpc('delete_own_account');
         if (error) throw error;
-        
-        // Clear local session
         await signOut();
         showToast('Hesabınız kalıcı olarak silindi.', 'info');
     } catch (e) {
