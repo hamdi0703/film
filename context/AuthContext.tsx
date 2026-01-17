@@ -9,7 +9,7 @@ interface User {
     username?: string;
     avatar_url?: string;
   };
-  is_blocked?: boolean; // Now derived from profiles table
+  is_blocked?: boolean; 
 }
 
 interface AuthContextType {
@@ -18,6 +18,9 @@ interface AuthContextType {
   signIn: (email: string, pass: string) => Promise<any>;
   signUp: (email: string, pass: string, username: string) => Promise<any>;
   signOut: () => Promise<void>;
+  updateProfile: (username: string, avatarUrl: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateUserStatus: (isBlocked: boolean) => Promise<void>;
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
@@ -29,7 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const MOCK_ADMIN_USER: User = {
   id: 'mock-admin-id-12345',
   email: 'admin@tria.app',
-  user_metadata: { username: 'Admin' },
+  user_metadata: { username: 'Admin', avatar_url: '' },
   is_blocked: false
 };
 
@@ -39,11 +42,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
   
-  // Ref to prevent double-processing in strict mode or rapid updates
   const isProcessingAuth = useRef(false);
 
-  // Helper to check block status from public.profiles
-  // Uses maybeSingle() to avoid throwing error if profile is not yet created by trigger
   const checkBlockStatus = async (userId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
@@ -51,11 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('is_blocked')
         .eq('id', userId)
         .maybeSingle(); 
-      
-      if (error) {
-          console.warn('Profile check error:', error);
-          return false;
-      }
+      if (error) return false;
       return data?.is_blocked || false;
     } catch (e) {
       return false;
@@ -76,7 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
            const isBlocked = await checkBlockStatus(session.user.id);
-           
            if(isBlocked) {
                await supabase.auth.signOut();
                if(mounted) showToast('Bu hesap engellenmiştir.', 'error');
@@ -93,28 +88,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (ev, session) => {
-        if (!mounted || isProcessingAuth.current) return;
+        if (!mounted) return;
+        if (localStorage.getItem('tria_mock_user')) return;
+        if (isProcessingAuth.current) return;
         
-        if (!localStorage.getItem('tria_mock_user')) {
-             isProcessingAuth.current = true;
-             
-             try {
-                 if (session?.user) {
-                     // Check block status ONLY if we have a session
-                     const isBlocked = await checkBlockStatus(session.user.id);
-                     if (isBlocked) {
-                         await supabase.auth.signOut();
-                         setUser(null);
-                         showToast('Hesabınız erişime kapatılmıştır.', 'error');
-                     } else {
-                         setUser({ ...session.user, is_blocked: false });
-                     }
-                 } else {
-                     setUser(null);
-                 }
-             } finally {
-                 isProcessingAuth.current = false;
-             }
+        isProcessingAuth.current = true;
+        try {
+            if (session?.user) {
+                const isBlocked = await checkBlockStatus(session.user.id);
+                if (isBlocked) {
+                    await supabase.auth.signOut();
+                    if(mounted) {
+                        setUser(null);
+                        showToast('Hesabınız erişime kapatılmıştır.', 'error');
+                    }
+                } else {
+                    if(mounted) setUser({ ...session.user, is_blocked: false });
+                }
+            } else {
+                if(mounted) setUser(null);
+            }
+        } finally {
+            isProcessingAuth.current = false;
         }
     });
 
@@ -130,14 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
       return { user: MOCK_ADMIN_USER };
     }
-
-    // Simplified SignIn: Let onAuthStateChange handle the state update
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
-    
-    // We do NOT check block status here manually to avoid race conditions.
-    // The onAuthStateChange listener will catch the new session and check it.
-    
     showToast('Giriş yapılıyor...', 'info');
     return data;
   };
@@ -163,28 +152,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast('Çıkış yapıldı', 'info');
   };
 
+  const updateProfile = async (username: string, avatarUrl: string) => {
+    if (!user) return;
+    if (user.id.startsWith('mock-')) {
+        const upd = { ...user, user_metadata: { ...user.user_metadata, username, avatar_url: avatarUrl } };
+        setUser(upd); localStorage.setItem('tria_mock_user', JSON.stringify(upd));
+        showToast('Profil güncellendi (Mock)', 'success');
+        return;
+    }
+
+    // 1. Update Auth Metadata
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { username, avatar_url: avatarUrl }
+    });
+    if (authError) throw authError;
+
+    // 2. Update Public Profiles Table
+    const { error: dbError } = await supabase.from('profiles').update({
+      username,
+      avatar_url: avatarUrl
+    }).eq('id', user.id);
+
+    if (dbError) throw dbError;
+
+    // 3. Update Local State
+    setUser(prev => prev ? ({
+        ...prev,
+        user_metadata: { ...prev.user_metadata, username, avatar_url: avatarUrl }
+    }) : null);
+
+    showToast('Profil başarıyla güncellendi', 'success');
+  };
+
+  const updatePassword = async (password: string) => {
+      if (!user) return;
+      if (user.id.startsWith('mock-')) {
+          showToast('Mock kullanıcı şifresi değiştirilemez', 'info');
+          return;
+      }
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      showToast('Şifreniz güncellendi', 'success');
+  };
+
+  const deleteAccount = async () => {
+    if (!user) return;
+    if (user.id.startsWith('mock-')) {
+        signOut();
+        return;
+    }
+
+    try {
+        // Call RPC function to allow self-deletion
+        const { error } = await supabase.rpc('delete_own_account');
+        if (error) throw error;
+        
+        // Clear local session
+        await signOut();
+        showToast('Hesabınız kalıcı olarak silindi.', 'info');
+    } catch (e) {
+        console.error(e);
+        showToast('Hesap silinirken bir hata oluştu.', 'error');
+    }
+  };
+
   const updateUserStatus = async (isBlocked: boolean) => {
       if (!user) return;
-      
       if (user.id.startsWith('mock-')) {
           const upd = { ...user, is_blocked: isBlocked };
           setUser(upd); localStorage.setItem('tria_mock_user', JSON.stringify(upd));
           return;
       }
-
       const { error } = await supabase
         .from('profiles')
         .update({ is_blocked: isBlocked })
         .eq('id', user.id);
 
       if (error) { 
-          console.error(error);
           showToast('Güncelleme başarısız', 'error'); 
           return; 
       }
-      
       if (isBlocked) {
-          showToast('Hesabınızı dondurdunuz. Çıkış yapılıyor...', 'error');
+          showToast('Hesabınızı dondurdunuz.', 'error');
           setTimeout(() => signOut(), 2000);
       } else {
           showToast('Hesap aktif', 'success');
@@ -194,8 +243,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ 
-        user, loading, signIn, signUp, signOut, updateUserStatus, 
-        isAuthModalOpen, openAuthModal: () => setIsAuthModalOpen(true), closeAuthModal: () => setIsAuthModalOpen(false) 
+        user, 
+        loading, 
+        signIn, 
+        signUp, 
+        signOut, 
+        updateProfile,
+        updatePassword,
+        deleteAccount,
+        updateUserStatus, 
+        isAuthModalOpen, 
+        openAuthModal: () => setIsAuthModalOpen(true), 
+        closeAuthModal: () => setIsAuthModalOpen(false) 
     }}>
       {children}
     </AuthContext.Provider>

@@ -2,6 +2,7 @@ import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './auth/AuthModal';
+import { getAvatarUrl, getAvatarPersona } from '../utils/avatarUtils';
 
 interface HeaderProps {
   onSearchToggle: () => void;
@@ -27,6 +28,11 @@ const Header: React.FC<HeaderProps> = ({
   const { theme, toggleTheme } = useTheme();
   // NOW USING GLOBAL STATE FROM CONTEXT
   const { user, isAuthModalOpen, openAuthModal, closeAuthModal } = useAuth();
+  
+  const avatarId = user?.user_metadata?.avatar_url;
+  const resolvedAvatarUrl = getAvatarUrl(avatarId);
+  // Get persona for gradient styling
+  const persona = getAvatarPersona(avatarId);
 
   return (
     <>
@@ -138,9 +144,10 @@ const Header: React.FC<HeaderProps> = ({
             {user ? (
                <button 
                   onClick={onOpenProfile}
-                  className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500 transition-all border border-white/20"
+                  style={{ background: `linear-gradient(135deg, ${persona.bgStart}, ${persona.bgEnd})` }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500 transition-all border border-white/20 overflow-hidden"
                 >
-                  {user.user_metadata?.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase()}
+                    <img src={resolvedAvatarUrl} alt="Avatar" className="w-full h-full object-cover transform scale-90" />
                 </button>
             ) : (
                 <button

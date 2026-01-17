@@ -7,7 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import { TmdbService } from './services/tmdbService';
 import { Movie, Genre, MediaType } from './types';
 import Header from './components/Header';
-import ProfileModal from './components/ProfileModal';
+import ProfileModal, { ProfileTab } from './components/ProfileModal';
 import MovieDetailView from './components/MovieDetailView';
 import ExploreView from './components/views/ExploreView';
 import DashboardView from './components/views/DashboardView';
@@ -18,6 +18,7 @@ const AppContent: React.FC = () => {
   // --- View State ---
   const [viewMode, setViewMode] = useState<'explore' | 'dashboard'>('explore');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>('PROFILE');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType>('movie');
 
@@ -54,7 +55,6 @@ const AppContent: React.FC = () => {
     }
   }, [loadSharedList, loadCloudList]);
 
-
   const handleMovieSelect = (movie: Movie) => {
       const type = (movie.first_air_date || movie.name) ? 'tv' : 'movie';
       setSelectedMediaType(type);
@@ -67,6 +67,12 @@ const AppContent: React.FC = () => {
       localStorage.removeItem('vista-theme');
       setSelectedMovie(null);
       showToast('Uygulama sıfırlandı', 'info');
+  };
+
+  const handleCloseProfile = () => {
+      setIsProfileOpen(false);
+      // Reset tab to default after closing
+      setTimeout(() => setProfileInitialTab('PROFILE'), 300);
   };
 
   // Detail View Overlay
@@ -89,8 +95,9 @@ const AppContent: React.FC = () => {
       
       {isProfileOpen && (
           <ProfileModal 
-            onClose={() => setIsProfileOpen(false)} 
+            onClose={handleCloseProfile} 
             onResetApp={resetAppData}
+            initialTab={profileInitialTab}
           />
       )}
       

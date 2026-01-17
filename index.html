@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
+    
+    <!-- CRITICAL: Disable Google Translate to prevent React DOM conflicts (insertBefore error) -->
+    <meta name="google" content="notranslate" />
     
     <!-- SEO & Meta Tags -->
     <title>Tria | Sinematik Keşif ve Koleksiyon</title>
@@ -23,7 +26,7 @@
     <meta property="twitter:description" content="Minimalist ve görsel odaklı film/dizi kütüphanesi." />
     <meta property="twitter:image" content="https://placehold.co/1200x630/000000/FFFFFF?text=Tria+App" />
 
-    <!-- Tailwind CSS (Development Mode için CDN, Production için PostCSS önerilir ancak yapıyı bozmamak için bırakıldı) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -93,9 +96,9 @@
 }
 </script>
 </head>
-  <body class="bg-vista-light dark:bg-vista-dark transition-colors duration-300">
+  <!-- Added 'notranslate' class -->
+  <body class="bg-vista-light dark:bg-vista-dark transition-colors duration-300 notranslate">
     <div id="root"></div>
-    <!-- Vite Entry Point -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

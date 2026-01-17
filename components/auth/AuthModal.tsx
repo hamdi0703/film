@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 interface AuthModalProps {
   onClose: () => void;
 }
 
+type AuthView = 'LOGIN' | 'REGISTER';
+
 const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const { signIn, signUp } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const { showToast } = useToast();
+  
+  const [view, setView] = useState<AuthView>('LOGIN');
   const [loading, setLoading] = useState(false);
   
   // Form State
@@ -20,24 +25,40 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
     setLoading(true);
     
     try {
-      if (isLogin) {
+      if (view === 'LOGIN') {
         await signIn(email, password);
-      } else {
+        onClose();
+      } else if (view === 'REGISTER') {
         await signUp(email, password, username);
+        // Don't close immediately on register, maybe wait for email confirmation or auto-login logic
+        setView('LOGIN'); 
       }
-      onClose(); // Close modal on success
-    } catch (error) {
-      // Error is handled in context toast
+    } catch (error: any) {
+      showToast(error.message || 'Bir hata oluştu', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTitle = () => {
+      switch(view) {
+          case 'LOGIN': return 'Tekrar Hoşgeldiniz';
+          case 'REGISTER': return 'Aramıza Katılın';
+      }
+  };
+
+  const getDescription = () => {
+      switch(view) {
+          case 'LOGIN': return 'Film yolculuğunuza kaldığınız yerden devam edin.';
+          case 'REGISTER': return 'Koleksiyonunuzu oluşturun ve düşüncelerinizi paylaşın.';
+      }
   };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-slide-in-up">
+      <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-3xl p-8 shadow-2xl border border-neutral-200 dark:border-neutral-800 animate-slide-in-up transition-all">
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -49,15 +70,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
 
         <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">
-                {isLogin ? 'Tekrar Hoşgeldiniz' : 'Aramıza Katılın'}
+                {getTitle()}
             </h2>
             <p className="text-sm text-neutral-500">
-                {isLogin ? 'Film yolculuğunuza kaldığınız yerden devam edin.' : 'Koleksiyonunuzu oluşturun ve düşüncelerinizi paylaşın.'}
+                {getDescription()}
             </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {view === 'REGISTER' && (
                 <div>
                     <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Kullanıcı Adı</label>
                     <input 
@@ -84,7 +105,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             </div>
 
             <div>
-                <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Şifre</label>
+                <div className="flex justify-between mb-2">
+                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide">Şifre</label>
+                </div>
                 <input 
                     type="password" 
                     required
@@ -102,18 +125,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
                 className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/30 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
                 {loading && <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                {isLogin ? 'Giriş Yap' : 'Kayıt Ol'}
+                {view === 'LOGIN' ? 'Giriş Yap' : 'Kayıt Ol'}
             </button>
         </form>
 
         <div className="mt-6 text-center">
             <p className="text-sm text-neutral-500">
-                {isLogin ? 'Hesabınız yok mu?' : 'Zaten hesabınız var mı?'}
+                {view === 'LOGIN' ? 'Hesabınız yok mu?' : 'Zaten hesabınız var mı?'}
                 <button 
-                    onClick={() => setIsLogin(!isLogin)}
+                    onClick={() => setView(view === 'LOGIN' ? 'REGISTER' : 'LOGIN')}
                     className="ml-2 font-bold text-indigo-600 hover:underline"
                 >
-                    {isLogin ? 'Kayıt Ol' : 'Giriş Yap'}
+                    {view === 'LOGIN' ? 'Kayıt Ol' : 'Giriş Yap'}
                 </button>
             </p>
         </div>

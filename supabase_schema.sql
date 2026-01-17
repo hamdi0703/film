@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   email text,
   username text,
+  avatar_url text, -- EKLENDİ
   is_blocked boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -17,6 +18,9 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'email') then
     alter table public.profiles add column email text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'avatar_url') then
+    alter table public.profiles add column avatar_url text;
   end if;
 end $$;
 
@@ -93,26 +97,30 @@ create policy "User Insert Shared" on public.shared_lists for insert with check 
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, username)
+  insert into public.profiles (id, email, username, avatar_url)
   values (
       new.id,
       new.email,
-      coalesce(new.raw_user_meta_data->>'username', new.email)
+      coalesce(new.raw_user_meta_data->>'username', new.email),
+      new.raw_user_meta_data->>'avatar_url'
   )
-  on conflict (id) do nothing; -- Zaten varsa hata verme
+  on conflict (id) do nothing; 
   return new;
 end;
 $$ language plpgsql security definer;
 
--- Trigger varsa silip yeniden oluşturur
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 6. ESKİ KULLANICILARI DÜZELTME (Opsiyonel)
--- Eğer trigger'dan önce oluşturulmuş kullanıcılar varsa onları da ekler
-insert into public.profiles (id, email, username)
-select id, email, raw_user_meta_data->>'username'
-from auth.users
-on conflict (id) do nothing;
+-- 6. GÜVENLİ HESAP SİLME FONKSİYONU (EKLENDİ)
+create or replace function public.delete_own_account()
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  delete from auth.users where id = auth.uid();
+end;
+$$;
