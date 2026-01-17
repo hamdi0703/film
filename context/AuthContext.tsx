@@ -9,6 +9,7 @@ interface User {
     username?: string;
     avatar_url?: string;
   };
+  is_blocked?: boolean; // Now derived from profiles table
 }
 
 interface AuthContextType {
@@ -17,7 +18,7 @@ interface AuthContextType {
   signIn: (email: string, pass: string) => Promise<any>;
   signUp: (email: string, pass: string, username: string) => Promise<any>;
   signOut: () => Promise<void>;
-  // UI State for Modal
+  updateUserStatus: (isBlocked: boolean) => Promise<void>;
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
@@ -25,155 +26,152 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// MOCK ADMIN USER DEFINITION
 const MOCK_ADMIN_USER: User = {
   id: 'mock-admin-id-12345',
-  email: 'admin@vista.app',
-  user_metadata: {
-    username: 'Admin',
-    avatar_url: null,
-  }
+  email: 'admin@tria.app',
+  user_metadata: { username: 'Admin' },
+  is_blocked: false
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // Global Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
 
+  // Helper to check block status from public.profiles
+  const checkBlockStatus = async (userId: string): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('is_blocked')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !data) return false;
+    return data.is_blocked;
+  };
+
   useEffect(() => {
-    const initializeAuth = async () => {
-      // 1. Check for Mock Session in LocalStorage first
-      const mockSession = localStorage.getItem('vista_mock_user');
-      if (mockSession) {
-        setUser(JSON.parse(mockSession));
-        setLoading(false);
-        return;
-      }
+    const init = async () => {
+      const mock = localStorage.getItem('tria_mock_user');
+      if (mock) { setUser(JSON.parse(mock)); setLoading(false); return; }
 
-      // 2. Try Supabase Session
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          setUser(session.user);
+           const isBlocked = await checkBlockStatus(session.user.id);
+           
+           if(isBlocked) {
+               await supabase.auth.signOut();
+               showToast('Bu hesap engellenmiştir.', 'error');
+           } else {
+               setUser({ ...session.user, is_blocked: false });
+           }
         }
-      } catch (error) {
-        // Suppress "Failed to fetch" if Supabase is not configured correctly yet
-        console.warn("Supabase bağlantısı kurulamadı (Offline modda devam ediliyor):", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { console.warn("Auth init failed", e); }
+      finally { setLoading(false); }
     };
+    init();
 
-    initializeAuth();
-
-    // Setup Listener (Safe wrap)
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        // Only update if not using mock user
-        if (!localStorage.getItem('vista_mock_user')) {
-           setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (ev, session) => {
+        if (!localStorage.getItem('tria_mock_user')) {
+             if (session?.user) {
+                 const isBlocked = await checkBlockStatus(session.user.id);
+                 if (isBlocked) {
+                     await supabase.auth.signOut();
+                     setUser(null);
+                 } else {
+                     setUser({ ...session.user, is_blocked: false });
+                 }
+             } else {
+                 setUser(null);
+             }
         }
-        setLoading(false);
-      });
-      return () => subscription.unsubscribe();
-    } catch (e) {
-      console.warn("Auth listener hatası", e);
-    }
-  }, []);
+    });
+    return () => subscription.unsubscribe();
+  }, [showToast]);
 
   const signIn = async (email: string, pass: string) => {
-    // --- ADMIN BYPASS ---
     if (email === 'admin' && pass === 'admin') {
       setUser(MOCK_ADMIN_USER);
-      localStorage.setItem('vista_mock_user', JSON.stringify(MOCK_ADMIN_USER));
-      showToast('Admin girişi yapıldı (Offline Mod)', 'success');
-      return { user: MOCK_ADMIN_USER, session: null };
+      localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
+      return { user: MOCK_ADMIN_USER };
     }
-    // --------------------
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: pass,
-      });
-      if (error) throw error;
-      showToast('Tekrar hoşgeldiniz!', 'success');
-      return data;
-    } catch (error: any) {
-      // Handle "Failed to fetch" specifically for better UX
-      if (error.message === 'Failed to fetch') {
-         showToast('Sunucuya bağlanılamadı. İnternet bağlantınızı veya Supabase ayarlarını kontrol edin.', 'error');
-      } else {
-         showToast(error.message || 'Giriş yapılamadı', 'error');
-      }
-      throw error;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    
+    // Check block status immediately after login
+    if (data.user) {
+        const isBlocked = await checkBlockStatus(data.user.id);
+        if (isBlocked) {
+            await supabase.auth.signOut();
+            throw new Error('Hesabınız erişime kapatılmıştır.');
+        }
     }
+
+    showToast('Hoşgeldiniz', 'success');
+    return data;
   };
 
   const signUp = async (email: string, pass: string, username: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: pass,
-        options: {
-          data: {
-            username: username,
-          },
-        },
-      });
-      if (error) throw error;
-      showToast('Hesap oluşturuldu! Hoşgeldiniz.', 'success');
-      return data;
-    } catch (error: any) {
-      if (error.message === 'Failed to fetch') {
-         showToast('Sunucuya erişilemiyor.', 'error');
-      } else {
-         showToast(error.message || 'Kayıt olunamadı', 'error');
-      }
-      throw error;
-    }
+    // Note: The SQL trigger will automatically create the profile entry
+    const { data, error } = await supabase.auth.signUp({
+      email, password: pass, options: { data: { username } }
+    });
+    if (error) throw error;
+    showToast('Kayıt başarılı', 'success');
+    return data;
   };
 
   const signOut = async () => {
-    // 1. Clear Application Data from Local Storage
-    localStorage.removeItem('vista_collections');
-    localStorage.removeItem('vista_user_reviews');
-    
-    // Check if Mock User
-    if (localStorage.getItem('vista_mock_user')) {
-      localStorage.removeItem('vista_mock_user');
-      setUser(null);
-      showToast('Çıkış yapıldı', 'info');
-      // Force reload to clear context states if needed, or rely on context updates
-      return;
+    localStorage.removeItem('tria_collections');
+    localStorage.removeItem('tria_user_reviews');
+    if (localStorage.getItem('tria_mock_user')) {
+       localStorage.removeItem('tria_mock_user');
+       setUser(null);
+       return;
     }
-
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      showToast('Çıkış yapıldı', 'info');
-    } catch (error: any) {
-      // Even if network fails, force logout on UI
-      setUser(null);
-      console.error(error);
-    }
+    await supabase.auth.signOut();
+    showToast('Çıkış yapıldı', 'info');
   };
 
-  const openAuthModal = () => setIsAuthModalOpen(true);
-  const closeAuthModal = () => setIsAuthModalOpen(false);
+  // BLOCK USER LOGIC (Self-deactivation for Demo)
+  const updateUserStatus = async (isBlocked: boolean) => {
+      if (!user) return;
+      
+      // Mock User
+      if (user.id.startsWith('mock-')) {
+          const upd = { ...user, is_blocked: isBlocked };
+          setUser(upd); localStorage.setItem('tria_mock_user', JSON.stringify(upd));
+          return;
+      }
+
+      // Real User: Update profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_blocked: isBlocked })
+        .eq('id', user.id);
+
+      if (error) { 
+          console.error(error);
+          showToast('Güncelleme başarısız', 'error'); 
+          return; 
+      }
+      
+      if (isBlocked) {
+          showToast('Hesabınızı dondurdunuz. Çıkış yapılıyor...', 'error');
+          setTimeout(() => signOut(), 2000);
+      } else {
+          showToast('Hesap aktif', 'success');
+          setUser({ ...user, is_blocked: false });
+      }
+  };
 
   return (
     <AuthContext.Provider value={{ 
-        user, 
-        loading, 
-        signIn, 
-        signUp, 
-        signOut,
-        isAuthModalOpen,
-        openAuthModal,
-        closeAuthModal
+        user, loading, signIn, signUp, signOut, updateUserStatus, 
+        isAuthModalOpen, openAuthModal: () => setIsAuthModalOpen(true), closeAuthModal: () => setIsAuthModalOpen(false) 
     }}>
       {children}
     </AuthContext.Provider>
@@ -181,9 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+    const context = useContext(AuthContext);
+    if (!context) throw new Error('useAuth missing');
+    return context;
+}

@@ -14,7 +14,7 @@ interface CollectionContextType {
   toggleMovieInCollection: (movie: Movie) => void;
   checkIsSelected: (id: number) => boolean;
   loadSharedList: (ids: string[]) => Promise<void>;
-  loadCloudList: (shareCode: string) => Promise<void>;
+  loadCloudList: (listId: string) => Promise<void>;
   shareCollection: (collectionId: string) => Promise<string | null>;
   resetCollections: () => void;
   updateTopFavorite: (slotIndex: number, movieId: number | null, type: MediaType) => void;
@@ -30,21 +30,12 @@ const DEFAULT_COLLECTION: Collection = {
     topFavoriteShows: [null, null, null, null, null]
 };
 
-// HELPER: Generate XXXX-XXXX-XXXX-XXXX format (16 chars)
-const generateShareCode = (): string => {
-    const part = () => Math.random().toString(36).substring(2, 6).toUpperCase().padEnd(4, 'X');
-    return `${part()}-${part()}-${part()}-${part()}`;
-};
-
 export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
   
-  // Flag to prevent saving while initial fetching is happening
   const isHydrating = useRef(true);
-
   const [collections, setCollections] = useState<Collection[]>([DEFAULT_COLLECTION]);
-
   const [activeCollectionId, setActiveCollectionId] = useState<string>('default');
 
   // --- 1. INITIALIZATION & SYNC LOGIC ---
@@ -52,7 +43,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const initData = async () => {
         isHydrating.current = true;
         
-        // Scenario A: Real User Logged In -> Fetch from Supabase
         if (user && !user.id.startsWith('mock-')) {
             try {
                 const { data, error } = await supabase
@@ -77,29 +67,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     setActiveCollectionId('default');
                 }
             } catch (err) {
-                console.error("Failed to sync collections:", err);
-                showToast('Veriler senkronize edilemedi.', 'error');
+                console.error("Sync failed:", err);
             }
         } 
-        // Scenario B: Guest or Mock User -> Load from LocalStorage
         else {
-            const saved = localStorage.getItem('vista_collections');
+            const saved = localStorage.getItem('tria_collections');
             if (saved) {
                 try { 
                     const parsed = JSON.parse(saved);
-                    const safeParsed = parsed.map((c: any) => ({
-                        ...c,
-                        topFavoriteMovies: c.topFavoriteMovies || c.topFavorites || [null, null, null, null, null],
-                        topFavoriteShows: c.topFavoriteShows || [null, null, null, null, null]
-                    }));
-                    setCollections(safeParsed);
-                    setActiveCollectionId(safeParsed[0]?.id || 'default');
+                    setCollections(parsed);
+                    setActiveCollectionId(parsed[0]?.id || 'default');
                 } catch (e) { 
-                    console.error(e); 
                     setCollections([DEFAULT_COLLECTION]);
                 }
-            } else {
-                setCollections([DEFAULT_COLLECTION]);
             }
         }
         isHydrating.current = false;
@@ -108,32 +88,28 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     initData();
   }, [user]);
 
-  // --- 2. PERSISTENCE LOGIC (Auto-Save) ---
+  // --- 2. AUTO-SAVE LOGIC ---
   useEffect(() => {
       if (isHydrating.current) return;
 
       const saveData = async () => {
-          // Scenario A: Real User -> Save to Supabase
           if (user && !user.id.startsWith('mock-')) {
-              
-              // DATA OPTIMIZATION: Stripping heavy data (credits)
+              // OPTIMIZATION: Keep top 15 cast and key crew, remove rest to save DB space
+              // BUT DO NOT REMOVE production_countries or runtime
               const payload = collections.map(col => ({
                   id: col.id,
                   user_id: user.id,
                   name: col.name,
                   movies: col.movies.map(m => {
-                      const { credits, production_countries, ...keep } = m;
+                      const { credits, ...keep } = m;
                       return {
                           ...keep,
                           credits: credits ? {
-                              cast: credits.cast?.slice(0, 10).map(c => ({ 
-                                  id: c.id, name: c.name, character: c.character, profile_path: c.profile_path, order: c.order 
-                              })) || [],
-                              crew: credits.crew?.filter(c => c.job === 'Director').map(c => ({
-                                  id: c.id, name: c.name, job: c.job, department: c.department, profile_path: c.profile_path
-                              })) || []
+                              cast: credits.cast?.slice(0, 15) || [],
+                              crew: credits.crew?.filter(c => ['Director', 'Writer'].includes(c.job)) || []
                           } : undefined,
-                          created_by: m.created_by?.map(c => ({ id: c.id, name: c.name, profile_path: c.profile_path }))
+                          // Ensure we save creators for TV
+                          created_by: m.created_by
                       };
                   }),
                   top_favorite_movies: col.topFavoriteMovies,
@@ -142,18 +118,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }));
 
               try {
-                  const { error } = await supabase
-                    .from('user_collections')
-                    .upsert(payload, { onConflict: 'id' });
-                  
-                  if (error) throw error;
+                  await supabase.from('user_collections').upsert(payload, { onConflict: 'id' });
               } catch (err) {
                   console.error("Auto-save failed", err);
               }
           } 
-          // Scenario B: Guest -> Save to LocalStorage
           else {
-              localStorage.setItem('vista_collections', JSON.stringify(collections));
+              localStorage.setItem('tria_collections', JSON.stringify(collections));
           }
       };
 
@@ -162,9 +133,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }, 2000); 
 
       return () => clearTimeout(handler);
-
   }, [collections, user]);
 
+  // --- CORE ACTIONS ---
 
   const createCollection = (name: string) => {
       const newCol: Collection = { 
@@ -176,7 +147,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       };
       setCollections(prev => [...prev, newCol]);
       setActiveCollectionId(newCol.id);
-      showToast(`"${name}" listesi oluşturuldu`, 'success');
+      showToast(`"${name}" oluşturuldu`, 'success');
   };
 
   const deleteCollection = async (id: string) => {
@@ -185,62 +156,81 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (activeCollectionId === id && filtered.length > 0) setActiveCollectionId(filtered[0].id);
           return filtered;
       });
-
       if (user && !user.id.startsWith('mock-')) {
-          try {
-              await supabase.from('user_collections').delete().eq('id', id);
-          } catch (e) { console.error("Remote delete failed", e); }
+          await supabase.from('user_collections').delete().eq('id', id);
       }
-
       showToast('Liste silindi', 'info');
   };
 
+  // --- CRITICAL FIX: Fetch Details on Add ---
   const toggleMovieInCollection = useCallback(async (movie: Movie) => {
-    let action = 'added';
-    const timestamp = new Date().toISOString();
+    // Determine if we need to fetch details (if missing runtime or country data)
     const isTv = !!(movie.name || movie.first_air_date);
+    const hasDetails = (isTv ? (movie.episode_run_time || movie.number_of_episodes) : movie.runtime) && movie.production_countries;
+    
+    // Check if exists first (Synchronous check)
+    let exists = false;
+    setCollections(prev => {
+        const col = prev.find(c => c.id === activeCollectionId);
+        if (col && col.movies.some(m => m.id === movie.id)) {
+            exists = true;
+        }
+        return prev;
+    });
 
-    setCollections(prev => prev.map(col => {
-        if (col.id === activeCollectionId) {
-            const exists = col.movies.find(m => m.id === movie.id);
-            if (exists) {
-                action = 'removed';
+    if (exists) {
+        // REMOVE LOGIC
+        setCollections(prev => prev.map(col => {
+            if (col.id === activeCollectionId) {
+                // Cleanup Favorites slots if removed
                 let newFavMovies = col.topFavoriteMovies || [null, null, null, null, null];
                 let newFavShows = col.topFavoriteShows || [null, null, null, null, null];
+                if (isTv) newFavShows = newFavShows.map(id => id === movie.id ? null : id);
+                else newFavMovies = newFavMovies.map(id => id === movie.id ? null : id);
 
-                if (isTv) {
-                    newFavShows = newFavShows.map(favId => favId === movie.id ? null : favId);
-                } else {
-                    newFavMovies = newFavMovies.map(favId => favId === movie.id ? null : favId);
-                }
-                
-                return { 
-                    ...col, 
+                return {
+                    ...col,
                     movies: col.movies.filter(m => m.id !== movie.id),
                     topFavoriteMovies: newFavMovies,
                     topFavoriteShows: newFavShows
                 };
             }
-            else {
-                const { credits, ...rest } = movie;
-                const optimizedMovie = {
-                    ...rest,
-                    credits: credits ? {
-                        cast: credits.cast?.slice(0, 10) || [],
-                        crew: credits.crew?.filter(c => c.job === 'Director') || []
-                    } : undefined,
-                    addedAt: timestamp
-                };
-                return { ...col, movies: [...col.movies, optimizedMovie] };
+            return col;
+        }));
+        // UX DECISION: No Toast on removal, visual state change is enough.
+    } else {
+        // ADD LOGIC
+        
+        // If missing details, fetch quietly without spamming toasts
+        if (!hasDetails) {
+            try {
+                const tmdb = new TmdbService();
+                const type = isTv ? 'tv' : 'movie';
+                const details = await tmdb.getMovieDetail(movie.id, type);
+                
+                // Add detailed movie
+                addMovieToState({ ...details, addedAt: new Date().toISOString() });
+            } catch (e) {
+                // Fallback add
+                addMovieToState({ ...movie, addedAt: new Date().toISOString() });
             }
+        } else {
+            // Already has details (came from Detail View)
+            addMovieToState({ ...movie, addedAt: new Date().toISOString() });
         }
-        return col;
-    }));
+        // UX DECISION: No Toast on success, visual state change (heart fill) is enough.
+    }
+  }, [activeCollectionId]); // Removed showToast dependency from array as it's not used in this function anymore
 
-    const title = movie.title || movie.name;
-    if (action === 'added') showToast(`"${title}" listeye eklendi`, 'success');
-    else showToast(`"${title}" listeden çıkarıldı`, 'info');
-  }, [activeCollectionId, showToast]);
+  const addMovieToState = (movieToAdd: Movie) => {
+      setCollections(prev => prev.map(col => {
+          if (col.id === activeCollectionId) {
+              if (col.movies.some(m => m.id === movieToAdd.id)) return col;
+              return { ...col, movies: [...col.movies, movieToAdd] };
+          }
+          return col;
+      }));
+  };
 
   const checkIsSelected = useCallback((id: number) => {
       const activeCollection = collections.find(c => c.id === activeCollectionId);
@@ -255,10 +245,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 : [...(col.topFavoriteMovies || [null, null, null, null, null])];
               
               if (movieId !== null) {
-                  const existingIndex = targetArray.indexOf(movieId);
-                  if (existingIndex !== -1 && existingIndex !== slotIndex) {
-                      targetArray[existingIndex] = null;
-                  }
+                  // Remove from other slots if exists
+                  const existingIdx = targetArray.indexOf(movieId);
+                  if (existingIdx !== -1 && existingIdx !== slotIndex) targetArray[existingIdx] = null;
               }
               targetArray[slotIndex] = movieId;
               return { 
@@ -271,125 +260,58 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }));
   }, [activeCollectionId]);
 
-  // --- SHARING LOGIC ---
-
+  // --- SHARE & LOAD ---
   const shareCollection = async (collectionId: string): Promise<string | null> => {
-    const collection = collections.find(c => c.id === collectionId);
-    if (!collection || collection.movies.length === 0) return null;
+      const collection = collections.find(c => c.id === collectionId);
+      if (!collection || !user || user.id.startsWith('mock-')) return null;
 
-    const isMockUser = user?.id.startsWith('mock-');
-    
-    if (isMockUser) {
-        showToast('Admin hesabıyla bulut kaydı yapılamaz.', 'error');
-        return null;
-    }
+      // Strip credits for shared list to be lightweight
+      const optimizedMovies = collection.movies.map(({ credits, ...rest }) => rest);
 
-    if (user) {
-        // GENERATE 16-CHAR CODE: XXXX-XXXX-XXXX-XXXX
-        const shareCode = generateShareCode();
-
-        const optimizedMovies = collection.movies.map(m => {
-             const { credits, ...rest } = m;
-             return { ...rest, credits: undefined };
-        });
-
-        try {
-            const { error } = await supabase
-                .from('shared_lists')
-                .insert({
-                    user_id: user.id,
-                    name: collection.name,
-                    movies: optimizedMovies,
-                    share_code: shareCode // Saving the formatted code
-                });
-
-            if (error) throw error;
-            return `?list=${shareCode}`; // Return formatted parameter
-        } catch (error: any) {
-            console.error("Share failed:", error);
-            showToast('Paylaşım oluşturulamadı.', 'error');
-        }
-    }
-
-    const ids = collection.movies.map(m => m.id).join(',');
-    return `?ids=${ids}`;
+      const { data, error } = await supabase.from('shared_lists')
+          .insert({ user_id: user.id, name: collection.name, movies: optimizedMovies })
+          .select('id').single();
+      
+      return error ? null : `?list=${data.id}`;
   };
 
-  const loadCloudList = async (shareCode: string) => {
-      try {
-          // QUERY BY share_code instead of ID
-          const { data, error } = await supabase
-            .from('shared_lists')
-            .select('*')
-            .eq('share_code', shareCode)
-            .single();
-
-          if (error) throw error;
-          if (data) {
-             const newCollection: Collection = {
-                id: `cloud-${data.id}`, 
-                name: data.name || 'Paylaşılan Liste',
-                movies: data.movies || [],
-                topFavoriteMovies: [null, null, null, null, null],
-                topFavoriteShows: [null, null, null, null, null]
-             };
-             
-             setCollections(prev => {
-                 if (prev.some(c => c.id === newCollection.id)) return prev;
-                 return [...prev, newCollection];
-             });
-             setActiveCollectionId(newCollection.id);
-             showToast(`"${data.name}" listesi yüklendi`, 'success');
-          }
-      } catch (error) {
-          console.error("Failed to load cloud list", error);
-          showToast('Paylaşılan liste bulunamadı', 'error');
+  const loadCloudList = async (listId: string) => {
+      const { data } = await supabase.from('shared_lists').select('*').eq('id', listId).single();
+      if (data) {
+          const newCol = {
+              id: `cloud-${data.id}`,
+              name: data.name,
+              movies: data.movies || [],
+              topFavoriteMovies: [null, null, null, null, null],
+              topFavoriteShows: [null, null, null, null, null]
+          };
+          setCollections(prev => [...prev, newCol]);
+          setActiveCollectionId(newCol.id);
+          showToast(`${data.name} yüklendi`, 'success');
       }
   };
 
   const loadSharedList = async (ids: string[]) => {
-      try {
-        const tmdb = new TmdbService();
-        const promises = ids.slice(0, 20).map(id => tmdb.getMovieDetail(parseInt(id))); 
-        const results = await Promise.all(promises);
-        const validMovies = results.filter(m => !!m).map(m => ({ ...m, addedAt: new Date().toISOString() }));
-        
-        const newCollection: Collection = {
-            id: `shared-${Date.now()}`,
-            name: 'Paylaşılan Liste',
-            movies: validMovies,
-            topFavoriteMovies: [null, null, null, null, null],
-            topFavoriteShows: [null, null, null, null, null]
-        };
-        setCollections(prev => [...prev, newCollection]);
-        setActiveCollectionId(newCollection.id);
-        showToast('Paylaşılan liste başarıyla yüklendi', 'success');
-    } catch (e) {
-        console.error("Failed to load shared list", e);
-        showToast('Liste yüklenirken hata oluştu', 'error');
-    }
+     const tmdb = new TmdbService();
+     const promises = ids.slice(0, 20).map(id => tmdb.getMovieDetail(parseInt(id)));
+     const res = await Promise.all(promises);
+     const valid = res.filter(m => !!m).map(m => ({...m, addedAt: new Date().toISOString()}));
+     const newCol = { id: `shared-${Date.now()}`, name: 'Paylaşılan', movies: valid, topFavoriteMovies: [], topFavoriteShows: [] };
+     setCollections(prev => [...prev, newCol]);
+     setActiveCollectionId(newCol.id);
   };
 
   const resetCollections = () => {
       setCollections([DEFAULT_COLLECTION]);
       setActiveCollectionId('default');
-      localStorage.setItem('vista_collections', JSON.stringify([DEFAULT_COLLECTION]));
+      localStorage.setItem('tria_collections', JSON.stringify([DEFAULT_COLLECTION]));
   };
 
   return (
     <CollectionContext.Provider value={{
-        collections,
-        activeCollectionId,
-        setActiveCollectionId,
-        createCollection,
-        deleteCollection,
-        toggleMovieInCollection,
-        checkIsSelected,
-        loadSharedList,
-        loadCloudList,
-        shareCollection,
-        resetCollections,
-        updateTopFavorite
+        collections, activeCollectionId, setActiveCollectionId, createCollection, deleteCollection,
+        toggleMovieInCollection, checkIsSelected, loadSharedList, loadCloudList, shareCollection,
+        resetCollections, updateTopFavorite
     }}>
       {children}
     </CollectionContext.Provider>
@@ -398,8 +320,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
 export const useCollectionContext = () => {
   const context = useContext(CollectionContext);
-  if (context === undefined) {
-    throw new Error('useCollectionContext must be used within a CollectionProvider');
-  }
+  if (!context) throw new Error('useCollectionContext must be used within a CollectionProvider');
   return context;
 };

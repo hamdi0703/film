@@ -40,11 +40,11 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedIds = params.get('ids');
-    const cloudListCode = params.get('list'); // Changed from 'id' to 'list' based on new requirement
+    const cloudListId = params.get('list');
 
-    if (cloudListCode) {
-        // Load persistent cloud list by 16-char CODE
-        loadCloudList(cloudListCode).then(() => {
+    if (cloudListId) {
+        // Load persistent cloud list
+        loadCloudList(cloudListId).then(() => {
             setViewMode('dashboard');
         });
     } else if (sharedIds) {
@@ -86,7 +86,7 @@ const AppContent: React.FC = () => {
   const listCount = collections.find(c => c.id === activeCollectionId)?.movies.length || 0;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans pb-20 md:pb-0">
+    <div className="min-h-screen flex flex-col font-sans pb-16 md:pb-0">
       
       {isProfileOpen && (
           <ProfileModal 
@@ -112,8 +112,7 @@ const AppContent: React.FC = () => {
         onOpenProfile={() => setIsProfileOpen(true)}
       />
       
-      {/* UPDATE: Increased max-width to max-w-screen-2xl for better PC scaling */}
-      <main className="flex-1 w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         {viewMode === 'dashboard' ? (
             <DashboardView 
                 onSelectMovie={handleMovieSelect}

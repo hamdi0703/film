@@ -8,7 +8,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     // Check system preference or localStorage on mount
-    const savedTheme = localStorage.getItem('vista-theme') as Theme;
+    const savedTheme = localStorage.getItem('tria-theme') as Theme;
     if (savedTheme) {
       setTheme(savedTheme);
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -20,7 +20,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
-    localStorage.setItem('vista-theme', theme);
+    localStorage.setItem('tria-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

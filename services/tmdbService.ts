@@ -4,14 +4,14 @@ export const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780';
 export const BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/w1280';
 const BASE_URL = 'https://api.themoviedb.org/3';
 
-// SYSTEM CONFIGURATION - HARDCODED for Vercel stability
+// SYSTEM CONFIGURATION
 const SYSTEM_API_KEY = '84fedfba42a08ab1365b8261d7ff276d';
 
 export class TmdbService {
+  // No longer requires an instance variable for apiKey since we use the system constant
+
   constructor() {
-    if (!SYSTEM_API_KEY) {
-      console.warn("TMDB API Key is missing.");
-    }
+    // Constructor is now empty or can be used for other init logic
   }
 
   // Helper: Sleep function

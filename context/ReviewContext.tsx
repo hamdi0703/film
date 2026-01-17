@@ -3,7 +3,7 @@ import { UserReview } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabaseClient';
 
-const STORAGE_KEY = 'vista_user_reviews';
+const STORAGE_KEY = 'tria_user_reviews';
 
 interface ReviewContextType {
   reviews: Record<number, UserReview>;
@@ -64,8 +64,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setReviews(mapped);
           }
         } catch (err) {
-          // If fetch fails (e.g. offline), fallback silently to local might be confusing if data is stale,
-          // but better than empty. However, per request, we want separation.
           console.warn('Supabase sync failed, check connection.');
         }
       } else {
@@ -80,9 +78,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Sync to LocalStorage (Backup for offline capability or Guest mode)
   useEffect(() => {
     if (!user || user.id.startsWith('mock-')) {
-        if (Object.keys(reviews).length > 0) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
-        }
+        // FIX: Always save to localStorage, even if empty, to ensure deletions are persisted
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
     }
   }, [reviews, user]);
 
@@ -105,7 +102,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     rating: review.rating,
                     comment: review.comment,
                     has_spoiler: review.hasSpoiler,
-                    // created_at is automatic on insert, updated_at logic is optional
+                    // created_at is automatic on insert
                 }, { onConflict: 'user_id, movie_id' }); // Requires unique constraint in DB
 
             if (error) throw error;
@@ -120,10 +117,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setReviews(prev => {
       const newState = { ...prev };
       delete newState[movieId];
-      // Update local storage only if guest
-      if (!user || user.id.startsWith('mock-')) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-      }
       return newState;
     });
 

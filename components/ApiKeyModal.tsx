@@ -17,7 +17,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
       <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-neutral-200 dark:border-neutral-800">
-        <h2 className="text-2xl font-bold mb-2 text-neutral-900 dark:text-white text-center">Vista'ya Hoşgeldiniz</h2>
+        <h2 className="text-2xl font-bold mb-2 text-neutral-900 dark:text-white text-center">Tria'ya Hoşgeldiniz</h2>
         <p className="text-neutral-600 dark:text-neutral-400 mb-6 text-center text-sm">
           Kütüphaneye erişmek için lütfen kişisel TMDB API Anahtarınızı girin.
           <br/>

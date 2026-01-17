@@ -16,10 +16,6 @@ import FavoriteSelectorModal from '../dashboard/FavoriteSelectorModal';
 import { useToast } from '../../context/ToastContext';
 import ErrorBoundary from '../ErrorBoundary';
 
-// --- CONFIGURATION: BASE URL ---
-// Burayı değiştirerek ana domain'i yönetebilirsin.
-const BASE_APP_URL = 'https://film5.vercel.app';
-
 interface DashboardViewProps {
   onSelectMovie: (movie: Movie) => void;
   genres: Genre[];
@@ -252,10 +248,29 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         const queryParam = await shareCollection(activeCollectionId);
         
         if (queryParam) {
-            // OPTIMIZED URL GENERATION WITH CONFIGURABLE BASE URL
-            const baseUrl = BASE_APP_URL;
-            const cleanOrigin = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-            const finalLink = `${cleanOrigin}/${queryParam}`;
+            // FIX: Robust URL generation for Cloud/Preview environments
+            let baseUrl = window.location.href;
+            
+            // 1. Remove 'blob:' prefix if it exists (common in IDX/Cloud previews)
+            if (baseUrl.startsWith('blob:')) {
+                baseUrl = baseUrl.replace('blob:', '');
+            }
+
+            // 2. Create clean URL object
+            const cleanUrl = new URL(baseUrl);
+            
+            // 3. Clear existing hash/search to prevent duplication
+            cleanUrl.hash = '';
+            cleanUrl.search = ''; 
+
+            // 4. Append the new query param (?list=... or ?ids=...)
+            // Since queryParam already contains '?', we append it carefully or use searchParams
+            const params = new URLSearchParams(queryParam);
+            params.forEach((value, key) => {
+                cleanUrl.searchParams.set(key, value);
+            });
+
+            const finalLink = cleanUrl.toString();
 
             navigator.clipboard.writeText(finalLink);
             showToast('Liste bağlantısı kopyalandı!', 'success');
@@ -425,8 +440,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                 </div>
                             )}
 
-                            {/* UPDATE: Increased grid columns for large screens */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-x-4 gap-y-8 md:gap-x-6 md:gap-y-10">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12">
                                 {processedData.groups[groupKey].map((movie, index) => (
                                     <MovieCard 
                                         key={`${movie.id}-${index}`}
