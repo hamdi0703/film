@@ -12,7 +12,7 @@ interface CollectionContextType {
   setActiveCollectionId: (id: string) => void;
   createCollection: (name: string) => void;
   deleteCollection: (id: string) => void;
-  toggleMovieInCollection: (movie: Movie) => Promise<void>; // Artık Promise dönüyor
+  toggleMovieInCollection: (movie: Movie) => Promise<void>; 
   checkIsSelected: (id: number) => boolean;
   loadSharedList: (ids: string[]) => Promise<void>;
   loadCloudList: (listId: string) => Promise<boolean>;
@@ -20,7 +20,7 @@ interface CollectionContextType {
   resetCollections: () => void;
   updateTopFavorite: (slotIndex: number, movieId: number | null, type: MediaType) => void;
   exitSharedMode: () => void;
-  refreshCollectionData: () => Promise<void>; // Mevcut veriyi onarmak için
+  refreshCollectionData: () => Promise<void>;
 }
 
 const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
@@ -125,9 +125,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                   id: col.id,
                   user_id: user.id,
                   name: col.name,
-                  movies: col.movies.map(m => {
-                      return m;
-                  }),
+                  movies: col.movies, // Full objects with credits
                   top_favorite_movies: col.topFavoriteMovies,
                   top_favorite_shows: col.topFavoriteShows,
                   updated_at: new Date().toISOString()
@@ -139,6 +137,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               localStorage.setItem('tria_collections', JSON.stringify(collections));
           }
       };
+      
+      // Debounce save to prevent too many writes
       const handler = setTimeout(saveData, 2000);
       return () => clearTimeout(handler);
   }, [collections, user, authLoading]);
@@ -154,7 +154,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               .single();
 
           if (listError || !listData) {
-              console.error("List fetch error:", listError);
               return false;
           }
 
@@ -192,6 +191,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
      setSharedList(null);
      try {
          const tmdb = new TmdbService();
+         // Legacy support: fetch details for IDs
          const promises = ids.slice(0, 20).map(id => tmdb.getMovieDetail(parseInt(id)));
          const res = await Promise.all(promises);
          const valid = res.filter(m => !!m).map(m => ({...m, addedAt: new Date().toISOString()}));
@@ -218,27 +218,35 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return null;
       }
 
-      const shareId = generateUniqueShareId();
-      
-      // Paylaşmadan önce verilerin tam olduğundan emin ol (Onarım Fonksiyonunu Çağır)
-      // Bu işlem, henüz detayları çekilmemiş filmleri tamamlar.
+      // Paylaşmadan önce verilerin %100 tam olduğundan emin ol (Son Kontrol)
       await refreshCollectionData();
 
-      // Güncel koleksiyonu tekrar al (State güncellenmiş olabilir)
-      // React state update hemen yansımaz, bu yüzden refetch yapmak yerine
-      // refreshCollectionData zaten state'i güncellediği için bir sonraki render döngüsünü beklememiz gerekir.
-      // Ancak kullanıcı deneyimi için burada mevcut state üzerinden gideceğiz, 
-      // çünkü refreshCollectionData zaten arka planda çalışıp state'i set ediyor.
+      // State güncellemeleri asenkron olduğu için, burada collection referansı eski olabilir.
+      // refreshCollectionData'dan sonra güncel veriyi almak için collections state'ini kullanamayız (closure).
+      // Ancak, kullanıcı arayüzünde "Bekleyiniz" diyip arka planda işi bitirdiğimiz için
+      // veritabanındaki (veya state'teki) en son hali almamız lazım.
+      // Burada pratik bir çözüm olarak: refreshCollectionData zaten state'i güncellediği için
+      // bir sonraki render döngüsünü beklemek gerekir ama biz manuel olarak state içindeki movie'leri
+      // kontrol edip eksik varsa tekrar fetch edip payload'a koyacağız.
       
-      // NOT: State güncellemesi asenkron olduğu için, burada collection değişkeni hala eski olabilir.
-      // Paylaşım fonksiyonu genellikle manuel tetiklendiği için bu nadir bir durumdur.
-      // Garantiye almak için payload'ı oluştururken kontrol ediyoruz.
+      const tmdb = new TmdbService();
+      const enrichedMovies = await Promise.all(collection.movies.map(async (m) => {
+          if (!m.credits || !m.production_countries) {
+              try {
+                  const isTv = !!(m.name || m.first_air_date);
+                  const type = isTv ? 'tv' : 'movie';
+                  return await tmdb.getMovieDetail(m.id, type);
+              } catch { return m; }
+          }
+          return m;
+      }));
 
+      const shareId = generateUniqueShareId();
       const payload: any = { 
           id: shareId,
           user_id: user.id, 
           name: collection.name, 
-          movies: collection.movies, // refreshCollectionData sonrası bunlar dolmuş olmalı
+          movies: enrichedMovies, 
           top_favorite_movies: collection.topFavoriteMovies,
           top_favorite_shows: collection.topFavoriteShows
       };
@@ -256,38 +264,35 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const exitSharedMode = useCallback(() => { setSharedList(null); }, []);
 
-  // --- 4. USER ACTIONS & DATA REPAIR ---
-
-  // YENİ FONKSİYON: Eksik verileri tamamlar
+  // --- 4. DATA REPAIR MECHANISM ---
+  
   const refreshCollectionData = async () => {
       const activeCol = collections.find(c => c.id === activeCollectionId);
       if (!activeCol || activeCol.movies.length === 0) return;
 
+      // Sadece verisi eksik olanları bul
       const moviesToUpdate = activeCol.movies.filter(m => !m.credits || !m.production_countries);
       
-      if (moviesToUpdate.length === 0) return; // Her şey güncel
+      if (moviesToUpdate.length === 0) return; 
 
+      // showToast('Veriler güncelleniyor...', 'info'); // Çok sık çıkmaması için kapalı
       const tmdb = new TmdbService();
       
-      // Paralel olarak verileri çek
       const updatedMovies = await Promise.all(activeCol.movies.map(async (movie) => {
-          // Eğer verisi eksikse API'den çek
+          // Credits yoksa EKSİK VERİDİR.
           if (!movie.credits || !movie.production_countries) {
               try {
                   const isTv = !!(movie.name || movie.first_air_date);
                   const type = isTv ? 'tv' : 'movie';
                   const details = await tmdb.getMovieDetail(movie.id, type);
-                  // Eski veriyi (eklenme tarihi vs) koru, yeni detayları ekle
-                  return { ...movie, ...details };
+                  return { ...movie, ...details }; // Mevcut verileri (addedAt vb) koru
               } catch (e) {
-                  console.warn(`Failed to refresh movie ${movie.id}`, e);
                   return movie;
               }
           }
           return movie;
       }));
 
-      // State'i güncelle
       setCollections(prev => prev.map(col => {
           if (col.id === activeCollectionId) {
               return { ...col, movies: updatedMovies };
@@ -314,17 +319,20 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           showToast('En az bir liste kalmalıdır.', 'error');
           return;
       }
+      
+      const nextId = collections.find(c => c.id !== id)?.id || 'default';
+      
       setCollections(prev => {
-          const filtered = prev.filter(c => c.id !== id);
-          if (activeCollectionId === id) setActiveCollectionId(filtered[0].id);
-          return filtered;
+          return prev.filter(c => c.id !== id);
       });
+      setActiveCollectionId(nextId);
+
       if (user && !user.id.startsWith('mock-')) {
           await supabase.from('user_collections').delete().eq('id', id);
       }
   };
 
-  // GÜNCELLENMİŞ FONKSİYON: Ekleme anında veri zenginleştirme
+  // --- CORE: ADD/REMOVE MOVIE (The Critical Fix) ---
   const toggleMovieInCollection = useCallback(async (movie: Movie) => {
     const targetCol = collections.find(c => c.id === activeCollectionId);
     if (!targetCol) return;
@@ -332,12 +340,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const exists = targetCol.movies.some(m => m.id === movie.id);
 
     if (exists) {
-        // Çıkarma işlemi (Senkron yapılabilir)
+        // --- REMOVE ---
         setCollections(prev => prev.map(col => {
             if (col.id === activeCollectionId) {
                 return {
                     ...col,
                     movies: col.movies.filter(m => m.id !== movie.id),
+                    // Favorilerden de sil
                     topFavoriteMovies: (col.topFavoriteMovies || []).map(mid => mid === movie.id ? null : mid),
                     topFavoriteShows: (col.topFavoriteShows || []).map(mid => mid === movie.id ? null : mid),
                 };
@@ -346,29 +355,44 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }));
         showToast('Listeden çıkarıldı', 'info');
     } else {
-        // Ekleme işlemi (Asenkron - Detayları Çek)
-        const tmdb = new TmdbService();
-        let movieToAdd = { ...movie, addedAt: new Date().toISOString() };
+        // --- ADD WITH FULL FETCH ---
+        // Kullanıcıya hemen geri bildirim ver ama işlemi arkada yap
+        // Ancak veri eksik gitmemesi için await kullanacağız.
+        showToast('Ekleniyor...', 'info'); 
+        
+        try {
+            const tmdb = new TmdbService();
+            const isTv = !!(movie.name || movie.first_air_date);
+            const type = isTv ? 'tv' : 'movie';
+            
+            // KEŞFET'ten gelen veri eksiktir. Mutlaka detay çek.
+            const fullDetails = await tmdb.getMovieDetail(movie.id, type);
+            
+            const movieToAdd = { 
+                ...movie, // Temel veriler (backdrop vb)
+                ...fullDetails, // Detaylı veriler (credits, countries)
+                addedAt: new Date().toISOString() 
+            };
 
-        // Eğer credits verisi eksikse (Keşfet'ten geliyorsa eksiktir), detayları çek
-        if (!movie.credits) {
-             try {
-                 const isTv = !!(movie.name || movie.first_air_date);
-                 const type = isTv ? 'tv' : 'movie';
-                 const details = await tmdb.getMovieDetail(movie.id, type);
-                 movieToAdd = { ...movieToAdd, ...details };
-             } catch (e) {
-                 console.warn("Could not fetch details on add, adding basic info", e);
-             }
+            setCollections(prev => prev.map(col => {
+                if (col.id === activeCollectionId) {
+                    return { ...col, movies: [...col.movies, movieToAdd] };
+                }
+                return col;
+            }));
+            showToast('Listeye eklendi', 'success');
+        } catch (e) {
+            console.error("Add failed", e);
+            // Hata olursa en azından eldeki veriyi ekle (Fallback)
+            const fallbackMovie = { ...movie, addedAt: new Date().toISOString() };
+            setCollections(prev => prev.map(col => {
+                if (col.id === activeCollectionId) {
+                    return { ...col, movies: [...col.movies, fallbackMovie] };
+                }
+                return col;
+            }));
+            showToast('Eklendi (Detaylar daha sonra yüklenecek)', 'info');
         }
-
-        setCollections(prev => prev.map(col => {
-            if (col.id === activeCollectionId) {
-                return { ...col, movies: [...col.movies, movieToAdd] };
-            }
-            return col;
-        }));
-        showToast('Listeye eklendi', 'success');
     }
   }, [activeCollectionId, collections, showToast]);
 
@@ -385,6 +409,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 : [...(col.topFavoriteMovies || [null, null, null, null, null])];
               
               if (movieId !== null) {
+                  // Eğer bu film başka bir slotta varsa, o slotu boşalt
                   const existingIdx = targetArray.indexOf(movieId);
                   if (existingIdx !== -1 && existingIdx !== slotIndex) targetArray[existingIdx] = null;
               }

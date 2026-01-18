@@ -1,60 +1,77 @@
 -- ==========================================
--- TRIA APP - GÜVENLİK VE TABLO ONARIM SCRİPTİ
+-- TRIA APP - GÜVENLİK VE RLS SIFIRLAMA (KESİN ÇÖZÜM)
 -- ==========================================
 
--- 1. SHARED LISTS TABLOSUNU GÜNCELLE
--- Eğer tablo yoksa oluşturur. Varsa eksik sütunları kontrol eder.
+-- 1. TABLOLARIN VARLIĞINI KONTROL ET VE OLUŞTUR
 create table if not exists public.shared_lists (
   id text primary key,
   user_id uuid references auth.users not null,
   name text not null,
-  movies jsonb not null, -- Oyuncular ve Yönetmenler bu JSON içinde saklanır
+  movies jsonb not null, 
   top_favorite_movies jsonb default '[null, null, null, null, null]'::jsonb,
   top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 2. GÜVENLİK POLİTİKALARINI (RLS) SIFIRLA VE YENİDEN KUR
--- Bu işlem, "Listeler gelmiyor" sorununun ana kaynağı olan erişim yetkilerini düzeltir.
+create table if not exists public.user_collections (
+  id text primary key,
+  user_id uuid references auth.users not null,
+  name text not null,
+  movies jsonb default '[]'::jsonb,
+  top_favorite_movies jsonb default '[null, null, null, null, null]'::jsonb,
+  top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
 
+-- 2. TÜM RLS POLİTİKALARINI SIFIRLA (Temiz Başlangıç)
 alter table public.shared_lists enable row level security;
+alter table public.user_collections enable row level security;
 
--- Mevcut politikaları temizle (Çakışma olmaması için)
+-- Önce eskileri sil (Hata vermemesi için IF EXISTS)
 drop policy if exists "Public Shared Read" on public.shared_lists;
 drop policy if exists "User Shared Insert" on public.shared_lists;
 drop policy if exists "Public shared lists access" on public.shared_lists;
 drop policy if exists "Auth insert shared lists" on public.shared_lists;
 drop policy if exists "Owner delete shared lists" on public.shared_lists;
+drop policy if exists "Users can manage their own collections" on public.user_collections;
+drop policy if exists "User Select Own" on public.user_collections;
+drop policy if exists "User Insert Own" on public.user_collections;
+drop policy if exists "User Update Own" on public.user_collections;
+drop policy if exists "User Delete Own" on public.user_collections;
 
--- YENİ POLİTİKALAR:
+-- 3. YENİ VE GÜVENLİ POLİTİKALAR
 
--- Kural 1: HERKES (Giriş yapmamış kişiler dahil) paylaşılan listeleri okuyabilir.
-create policy "Public shared lists access" 
+-- Shared Lists: Herkes okuyabilir, sadece sahibi ekleyebilir/silebilir.
+create policy "Anyone can read shared lists" 
 on public.shared_lists for select 
 using (true);
 
--- Kural 2: Sadece giriş yapmış kullanıcılar YENİ liste paylaşabilir.
-create policy "Auth insert shared lists" 
+create policy "Users can insert shared lists" 
 on public.shared_lists for insert 
 with check (auth.uid() = user_id);
 
--- Kural 3: Kullanıcı sadece KENDİ paylaştığı listeyi silebilir.
-create policy "Owner delete shared lists" 
+create policy "Users can delete own shared lists" 
 on public.shared_lists for delete 
 using (auth.uid() = user_id);
 
--- 3. JSONB SÜTUNLARINI GARANTİ ALTINA AL
--- Eğer eski veritabanında bu sütunlar eksikse ekler.
-do $$
-begin
-  if not exists (select 1 from information_schema.columns where table_name = 'shared_lists' and column_name = 'top_favorite_movies') then
-    alter table public.shared_lists add column top_favorite_movies jsonb default '[null, null, null, null, null]'::jsonb;
-  end if;
-  if not exists (select 1 from information_schema.columns where table_name = 'shared_lists' and column_name = 'top_favorite_shows') then
-    alter table public.shared_lists add column top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb;
-  end if;
-end $$;
+-- User Collections: Sadece sahibi her şeyi yapabilir.
+create policy "Users can select own collections" 
+on public.user_collections for select 
+using (auth.uid() = user_id);
 
--- 4. VERİ BÜTÜNLÜĞÜ (Opsiyonel Kontrol)
--- Movies kolonunun boş olmamasını garanti altına alan bir constraint (Eğer yoksa)
--- alter table public.shared_lists add constraint check_movies_not_null check (movies is not null);
+create policy "Users can insert own collections" 
+on public.user_collections for insert 
+with check (auth.uid() = user_id);
+
+create policy "Users can update own collections" 
+on public.user_collections for update 
+using (auth.uid() = user_id);
+
+create policy "Users can delete own collections" 
+on public.user_collections for delete 
+using (auth.uid() = user_id);
+
+-- 4. PERFORMANS İÇİN INDEX (Opsiyonel ama önerilir)
+create index if not exists idx_shared_lists_user_id on public.shared_lists(user_id);
+create index if not exists idx_user_collections_user_id on public.user_collections(user_id);
