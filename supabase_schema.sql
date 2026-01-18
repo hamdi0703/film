@@ -1,9 +1,9 @@
 
 -- ==========================================
--- TRIA APP - MIGRATION & SECURITY UPDATE
+-- TRIA APP - SECURITY FIXES & MIGRATION
 -- ==========================================
 
--- 1. MEVCUT TABLOYA SÜTUN EKLEME (MIGRATION)
+-- 1. Tablo yapısını garantiye al
 alter table public.user_collections 
 add column if not exists is_public boolean default false;
 
@@ -13,26 +13,47 @@ add column if not exists share_token text unique;
 alter table public.user_collections 
 add column if not exists description text;
 
--- Token için index (Hızlı sorgulama için)
 create index if not exists idx_user_collections_token on public.user_collections(share_token);
 
--- 2. RLS POLİTİKALARINI GÜNCELLEME
--- Önceki politikaları temizle (Çakışmayı önlemek için)
+-- 2. RLS POLİTİKALARINI SIFIRLA VE YENİDEN YAZ
+-- Mevcut tüm politikaları temizle (Çakışmaları önlemek için)
 drop policy if exists "Public Shared Read" on public.shared_lists;
 drop policy if exists "Public Read Collections" on public.user_collections;
 drop policy if exists "Users can select own collections" on public.user_collections;
+drop policy if exists "Users can insert own collections" on public.user_collections;
+drop policy if exists "Users can update own collections" on public.user_collections;
+drop policy if exists "Users can delete own collections" on public.user_collections;
 
--- Politikalar:
+-- RLS'yi Aktif Et (Emin olmak için)
+alter table public.user_collections enable row level security;
 
--- A. Kullanıcı kendi koleksiyonunu her zaman görür (Gizli olsa bile)
+-- --- POLİTİKALAR ---
+
+-- A. OKUMA (SELECT)
+-- 1. Kullanıcı kendi listesini her zaman görebilir
 create policy "Users can select own collections" 
 on public.user_collections for select 
 using (auth.uid() = user_id);
 
--- B. Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir (Token ile erişim için)
+-- 2. Herkes (Giriş yapmamışlar dahil) PUBLIC olan listeleri görebilir
 create policy "Public Read Collections" 
 on public.user_collections for select 
 using (is_public = true);
 
--- Not: Update/Insert/Delete politikaları context içinde zaten sadece owner'a izin veriyor.
--- Shared Lists tablosu artık 'Legacy' moduna geçtiği için ona dokunmuyoruz.
+-- B. YAZMA (INSERT)
+-- Kullanıcı sadece kendi ID'si ile kayıt ekleyebilir
+create policy "Users can insert own collections" 
+on public.user_collections for insert 
+with check (auth.uid() = user_id);
+
+-- C. GÜNCELLEME (UPDATE)
+-- Kullanıcı sadece kendi listesini güncelleyebilir
+create policy "Users can update own collections" 
+on public.user_collections for update 
+using (auth.uid() = user_id);
+
+-- D. SİLME (DELETE)
+-- Kullanıcı sadece kendi listesini silebilir
+create policy "Users can delete own collections" 
+on public.user_collections for delete 
+using (auth.uid() = user_id);
