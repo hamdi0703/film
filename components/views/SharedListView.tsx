@@ -5,8 +5,6 @@ import MovieCard from '../MovieCard';
 import { useAuth } from '../../context/AuthContext';
 import MediaTypeNavbar from '../MediaTypeNavbar';
 import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
-import ActorSpotlight from '../analytics/ActorSpotlight';
-import DirectorSpotlight from '../analytics/DirectorSpotlight';
 import TopFavorites from '../dashboard/TopFavorites';
 import ErrorBoundary from '../ErrorBoundary';
 
@@ -124,7 +122,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                 />
             </div>
 
-            {/* 4. ANALİZ BÖLÜMÜ (YENİ) */}
+            {/* 4. ANALİZ BÖLÜMÜ (YENİ - HEPSİ BİR ARADA) */}
             <div className="mb-12">
                  <ErrorBoundary>
                     <CollectionAnalytics 
@@ -132,15 +130,6 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                         genres={genres}
                     />
                  </ErrorBoundary>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                     <ErrorBoundary fullHeight>
-                        <ActorSpotlight movies={filteredMovies} />
-                     </ErrorBoundary>
-                     <ErrorBoundary fullHeight>
-                        <DirectorSpotlight movies={filteredMovies} />
-                     </ErrorBoundary>
-                 </div>
             </div>
 
             {/* 5. FİLM GRİDİ */}

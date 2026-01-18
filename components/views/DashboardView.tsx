@@ -5,8 +5,6 @@ import { useReviewContext } from '../../context/ReviewContext';
 import MovieCard from '../MovieCard';
 import DashboardHeader from '../DashboardHeader';
 import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
-import ActorSpotlight from '../analytics/ActorSpotlight';
-import DirectorSpotlight from '../analytics/DirectorSpotlight';
 import CollectionControls, { SortOptionType, GroupOptionType, FilterStatusType } from '../dashboard/CollectionControls';
 import TopFavorites from '../dashboard/TopFavorites';
 import FavoriteSelectorModal from '../dashboard/FavoriteSelectorModal';
@@ -338,8 +336,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             />
         )}
 
-        {/* --- YENİ ANALİTİK BÖLÜMÜ --- */}
-        {/* Eski dağınık chartlar yerine tek bir bileşen */}
+        {/* --- ANALİTİK BÖLÜMÜ (TEK BİLEŞEN) --- */}
         {tabFilteredMovies.length > 0 && (
             <div className="mb-12">
                  <ErrorBoundary>
@@ -348,16 +345,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                         genres={genres}
                     />
                  </ErrorBoundary>
-                 
-                 {/* Spotlight'lar (Who) ayrı olarak altta tutuldu, ama yan yana */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                     <ErrorBoundary fullHeight>
-                        <ActorSpotlight movies={tabFilteredMovies} />
-                     </ErrorBoundary>
-                     <ErrorBoundary fullHeight>
-                        <DirectorSpotlight movies={tabFilteredMovies} />
-                     </ErrorBoundary>
-                 </div>
             </div>
         )}
 

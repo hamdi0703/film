@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Movie, Genre } from '../../types';
+import { IMAGE_BASE_URL } from '../../services/tmdbService';
 
 interface CollectionAnalyticsProps {
   movies: Movie[];
@@ -15,9 +16,14 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
     let totalMinutes = 0;
     let totalRating = 0;
     let ratedCount = 0;
+    
     const genreCounts: Record<number, number> = {};
     const decadeCounts: Record<string, number> = {};
     const countryCounts: Record<string, { name: string; count: number; code: string }> = {};
+    
+    // Actor & Director Maps
+    const actorCounts: Record<number, { id: number; name: string; count: number; image: string | null }> = {};
+    const directorCounts: Record<number, { id: number; name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
         // 1. Süre Hesaplama
@@ -63,9 +69,51 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                  countryCounts[c.iso_3166_1].count += 1;
             });
         }
+
+        // 6. Oyuncular (Cast) - Sadece krediler varsa
+        if (m.credits?.cast) {
+            // Sadece ilk 10 oyuncuyu al (Başroller ağırlıklı olsun diye)
+            m.credits.cast.slice(0, 10).forEach(actor => {
+                if (!actorCounts[actor.id]) {
+                    actorCounts[actor.id] = { 
+                        id: actor.id, 
+                        name: actor.name, 
+                        count: 0, 
+                        image: actor.profile_path 
+                    };
+                }
+                actorCounts[actor.id].count += 1;
+            });
+        }
+
+        // 7. Yönetmenler (Crew) & Yaratıcılar (TV)
+        let foundDirector = false;
+        
+        // Film Yönetmeni
+        if (m.credits?.crew) {
+            const directors = m.credits.crew.filter(c => c.job === 'Director');
+            directors.forEach(d => {
+                if (!directorCounts[d.id]) {
+                    directorCounts[d.id] = { id: d.id, name: d.name, count: 0, image: d.profile_path };
+                }
+                directorCounts[d.id].count += 1;
+                foundDirector = true;
+            });
+        }
+
+        // Dizi Yaratıcısı (Eğer yönetmen bulunamadıysa veya ek olarak)
+        if (m.created_by && m.created_by.length > 0) {
+            m.created_by.forEach(creator => {
+                if (!directorCounts[creator.id]) {
+                    directorCounts[creator.id] = { id: creator.id, name: creator.name, count: 0, image: creator.profile_path };
+                }
+                directorCounts[creator.id].count += 1;
+            });
+        }
     });
 
-    // Veri Formatlama ve Sıralama
+    // --- VERİ FORMATLAMA & SIRALAMA ---
+
     const sortedGenres = Object.entries(genreCounts)
         .map(([id, count]) => ({
             name: genres.find(g => g.id === parseInt(id))?.name || 'Diğer',
@@ -83,6 +131,14 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
+    const sortedActors = Object.values(actorCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5); // Top 5 Actor
+
+    const sortedDirectors = Object.values(directorCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5); // Top 5 Director
+
     const avgRating = ratedCount > 0 ? (totalRating / ratedCount).toFixed(1) : '-';
     const totalHours = Math.floor(totalMinutes / 60);
 
@@ -92,17 +148,46 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
         avgRating,
         genres: sortedGenres,
         decades: sortedDecades,
-        countries: sortedCountries
+        countries: sortedCountries,
+        actors: sortedActors,
+        directors: sortedDirectors
     };
   }, [movies, genres]);
 
   if (!stats) return null;
 
+  // Reusable Profile Row Component
+  const ProfileRow = ({ item }: { item: any }) => (
+    <div className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors group">
+        <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-700 flex-shrink-0 border border-neutral-100 dark:border-neutral-600">
+                {item.image ? (
+                    <img 
+                        src={`${IMAGE_BASE_URL}${item.image}`} 
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-neutral-500">
+                        {item.name.charAt(0)}
+                    </div>
+                )}
+            </div>
+            <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 truncate max-w-[120px] group-hover:text-indigo-500 transition-colors">
+                {item.name}
+            </span>
+        </div>
+        <span className="text-xs font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 px-2 py-1 rounded-md shadow-sm border border-neutral-100 dark:border-neutral-600 min-w-[24px] text-center">
+            {item.count}
+        </span>
+    </div>
+  );
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
         
-        {/* SOL KOLON: KPI ve Türler */}
-        <div className="lg:col-span-1 space-y-6">
+        {/* --- 1. SOL KOLON: KPI ve TÜR DAĞILIMI --- */}
+        <div className="space-y-6">
             
             {/* KPI Kartları */}
             <div className="grid grid-cols-2 gap-4">
@@ -121,7 +206,7 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                 </div>
             </div>
 
-            {/* Tür Dağılımı (Progress Bars) */}
+            {/* Tür Dağılımı */}
             <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
                     <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
@@ -146,61 +231,97 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
             </div>
         </div>
 
-        {/* ORTA KOLON: Zaman Tüneli (Histogram) */}
-        <div className="lg:col-span-1 bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col">
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-teal-500 rounded-full"></span>
-                Zaman Tüneli
-            </h3>
-            <div className="flex-1 flex items-end justify-between gap-2 min-h-[200px] px-2">
-                {stats.decades.map((decade, idx) => {
-                    const maxCount = Math.max(...stats.decades.map(d => d.count));
-                    const heightPercent = Math.max((decade.count / maxCount) * 100, 10);
-                    
-                    return (
-                        <div key={idx} className="flex-1 flex flex-col items-center group">
-                            <div className="relative w-full flex justify-center">
-                                <div 
-                                    className="w-full max-w-[24px] bg-teal-500/20 dark:bg-teal-500/20 rounded-t-lg group-hover:bg-teal-500/40 transition-colors relative overflow-hidden"
-                                    style={{ height: `${heightPercent * 2}px` }}
-                                >
-                                    <div className="absolute bottom-0 left-0 right-0 bg-teal-500 h-full opacity-60"></div>
+        {/* --- 2. ORTA KOLON: ZAMAN TÜNELİ & YÖNETMENLER --- */}
+        <div className="space-y-6">
+             {/* Zaman Tüneli */}
+            <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col min-h-[250px]">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-teal-500 rounded-full"></span>
+                    Zaman Tüneli
+                </h3>
+                <div className="flex-1 flex items-end justify-between gap-2 px-2">
+                    {stats.decades.map((decade, idx) => {
+                        const maxCount = Math.max(...stats.decades.map(d => d.count), 1);
+                        const heightPercent = Math.max((decade.count / maxCount) * 100, 10);
+                        
+                        return (
+                            <div key={idx} className="flex-1 flex flex-col items-center group">
+                                <div className="relative w-full flex justify-center">
+                                    <div 
+                                        className="w-full max-w-[24px] bg-teal-500/20 dark:bg-teal-500/20 rounded-t-lg group-hover:bg-teal-500/40 transition-colors relative overflow-hidden"
+                                        style={{ height: `${heightPercent}px`, minHeight: '20px' }}
+                                    >
+                                        <div className="absolute bottom-0 left-0 right-0 bg-teal-500 h-full opacity-60"></div>
+                                    </div>
+                                    <div className="absolute -top-6 text-[10px] font-bold text-neutral-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {decade.count}
+                                    </div>
                                 </div>
-                                <div className="absolute -top-6 text-[10px] font-bold text-neutral-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {decade.count}
-                                </div>
+                                <span className="text-[10px] font-bold text-neutral-400 mt-2 -rotate-45 origin-left translate-y-2">{decade.label}</span>
                             </div>
-                            <span className="text-[10px] font-bold text-neutral-400 mt-2 -rotate-45 origin-left translate-y-2">{decade.label}</span>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Yönetmenler */}
+            <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-amber-500 rounded-full"></span>
+                    Yönetmenler
+                </h3>
+                <div className="space-y-3">
+                    {stats.directors.length > 0 ? stats.directors.map((director, idx) => (
+                        <ProfileRow key={idx} item={director} />
+                    )) : (
+                        <p className="text-xs text-neutral-400 text-center py-4">Veri bulunamadı.</p>
+                    )}
+                </div>
             </div>
         </div>
 
-        {/* SAĞ KOLON: Coğrafya (List) */}
-        <div className="lg:col-span-1 bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-rose-500 rounded-full"></span>
-                Yapım Ülkeleri
-            </h3>
-            <div className="space-y-4">
-                {stats.countries.map((country, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-                        <div className="flex items-center gap-3">
-                            <img 
-                                src={`https://flagcdn.com/w40/${country.code.toLowerCase()}.png`} 
-                                alt={country.name}
-                                className="w-8 h-6 object-cover rounded shadow-sm opacity-90"
-                            />
-                            <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 truncate max-w-[120px]">
-                                {country.name === 'United States of America' ? 'ABD' : country.name === 'United Kingdom' ? 'Birleşik Krallık' : country.name}
+        {/* --- 3. SAĞ KOLON: ÜLKELER & OYUNCULAR --- */}
+        <div className="space-y-6">
+             {/* Ülkeler */}
+            <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-rose-500 rounded-full"></span>
+                    Yapım Ülkeleri
+                </h3>
+                <div className="space-y-3">
+                    {stats.countries.map((country, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                            <div className="flex items-center gap-3">
+                                <img 
+                                    src={`https://flagcdn.com/w40/${country.code.toLowerCase()}.png`} 
+                                    alt={country.name}
+                                    className="w-8 h-6 object-cover rounded shadow-sm opacity-90"
+                                />
+                                <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 truncate max-w-[120px]">
+                                    {country.name === 'United States of America' ? 'ABD' : country.name === 'United Kingdom' ? 'Birleşik Krallık' : country.name}
+                                </span>
+                            </div>
+                            <span className="text-xs font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 px-2 py-1 rounded-md shadow-sm border border-neutral-100 dark:border-neutral-600">
+                                {country.count}
                             </span>
                         </div>
-                        <span className="text-xs font-bold text-neutral-900 dark:text-white bg-white dark:bg-neutral-700 px-2 py-1 rounded-md shadow-sm border border-neutral-100 dark:border-neutral-600">
-                            {country.count}
-                        </span>
-                    </div>
-                ))}
+                    ))}
+                </div>
+            </div>
+
+            {/* Oyuncular */}
+            <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-purple-500 rounded-full"></span>
+                    Favori Oyuncular
+                </h3>
+                <div className="space-y-3">
+                    {stats.actors.length > 0 ? stats.actors.map((actor, idx) => (
+                        <ProfileRow key={idx} item={actor} />
+                    )) : (
+                        <p className="text-xs text-neutral-400 text-center py-4">Veri bulunamadı.</p>
+                    )}
+                </div>
             </div>
         </div>
 
