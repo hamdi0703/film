@@ -93,9 +93,11 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         shareToken: d.share_token,
                         movies: d.movies || [],
                         topFavoriteMovies: d.top_favorite_movies || [null, null, null, null, null],
-                        topFavoriteShows: d.top_favorite_shows || [null, null, null, null, null]
+                        topFavoriteShows: d.top_favorite_shows || [null, null, null, null, null],
+                        ownerId: d.user_id
                     }));
                     setCollections(mapped);
+                    // Eğer aktif ID listede yoksa ilkini seç
                     if (!mapped.find(c => c.id === activeCollectionId)) {
                         setActiveCollectionId(mapped[0].id);
                     }
@@ -165,14 +167,23 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const loadCollectionByToken = useCallback(async (token: string): Promise<boolean> => {
       setSharedList(null);
       try {
+          // GÜNCELLEME: is_public filtresini kaldırdık. 
+          // RLS (Database Policy) zaten izinsiz erişimi engeller.
+          // Ancak SAHİBİ erişmek isterse görebilmeli.
           const { data, error } = await supabase
             .from('user_collections')
             .select('*')
             .eq('share_token', token)
-            .eq('is_public', true) // Security Check
             .single();
             
           if (error || !data) return false;
+
+          // Ek Güvenlik Kontrolü (Client-side)
+          // Eğer liste public DEĞİLSE ve giren kişi sahibi DEĞİLSE, gösterme.
+          const currentUserId = (await supabase.auth.getUser()).data.user?.id;
+          if (!data.is_public && data.user_id !== currentUserId) {
+              return false; 
+          }
 
           // Owner username fetch
           let ownerUsername = 'Anonim';
@@ -187,11 +198,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               id: `live-${data.id}`,
               name: data.name,
               description: data.description,
-              isPublic: true,
+              isPublic: data.is_public,
               movies: data.movies || [],
               topFavoriteMovies: data.top_favorite_movies,
               topFavoriteShows: data.top_favorite_shows,
-              owner: ownerUsername
+              owner: ownerUsername,
+              ownerId: data.user_id
           };
           setSharedList(shared);
           return true;

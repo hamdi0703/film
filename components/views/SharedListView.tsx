@@ -52,6 +52,11 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
       return automaticIds;
   }, [sharedList, filteredMovies, activeTab]);
 
+  const isOwner = useMemo(() => {
+      if (!user || !sharedList) return false;
+      return user.id === sharedList.ownerId;
+  }, [user, sharedList]);
+
   if (!sharedList) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in text-center px-4 relative">
@@ -78,9 +83,9 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </div>
-            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">Liste Bulunamadı</h2>
+            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-2">Liste Erişilemiyor</h2>
             <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
-                Aradığınız liste silinmiş, gizlenmiş veya bağlantı hatalı olabilir.
+                Bu liste gizli olabilir veya silinmiş.
             </p>
             <button 
                 onClick={onBack} 
@@ -116,7 +121,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
       <div className="text-center mb-10 px-4 pt-8 md:pt-0">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider mb-6 border border-indigo-100 dark:border-indigo-800">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-              Paylaşılan Koleksiyon
+              {isOwner ? 'Sizin Listeniz (Önizleme)' : 'Paylaşılan Koleksiyon'}
           </div>
           
           <h1 className="text-3xl md:text-5xl font-black text-neutral-900 dark:text-white mb-4 tracking-tight leading-tight">
@@ -128,6 +133,21 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                   "{sharedList.description}"
               </p>
           )}
+
+          {/* SAHİBİ İÇİN KONTROL BUTONU */}
+          {isOwner && (
+              <div className="mb-6 animate-pulse">
+                  <button 
+                    onClick={onBack}
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-sm shadow-xl hover:scale-105 transition-transform"
+                  >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Listeyi Yönet
+                  </button>
+              </div>
+          )}
           
           <div className="flex flex-col items-center gap-1 mb-6">
               <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">Hazırlayan</span>
@@ -135,6 +155,12 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                   {sharedList.owner || 'Anonim'}
               </span>
           </div>
+
+          {!sharedList.isPublic && isOwner && (
+              <div className="max-w-md mx-auto bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 text-xs p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-6">
+                  Bu liste şu an <strong>Gizli</strong>. Sadece siz görebilirsiniz. Başkalarıyla paylaşmak için ayarlardan "Herkese Açık" yapın.
+              </div>
+          )}
           
           <p className="text-neutral-700 dark:text-neutral-300 max-w-lg mx-auto text-base md:text-lg leading-relaxed font-medium opacity-90">
              Bu koleksiyonda toplam <strong>{allMovies.length}</strong> yapım bulunmaktadır.

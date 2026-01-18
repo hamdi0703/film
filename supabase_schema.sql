@@ -20,15 +20,16 @@ create index if not exists idx_user_collections_token on public.user_collections
 -- Önceki politikaları temizle (User Select Own kalacak, Public Read ekleyeceğiz)
 drop policy if exists "Public Shared Read" on public.shared_lists;
 drop policy if exists "Public Read Collections" on public.user_collections;
+drop policy if exists "Users can select own collections" on public.user_collections;
 
 -- Politikalar:
--- A. Kullanıcı kendi koleksiyonunu her türlü yönetir (Mevcut, tekrar emin olalım)
-drop policy if exists "Users can select own collections" on public.user_collections;
+
+-- A. Kullanıcı kendi koleksiyonunu her zaman görür (Gizli olsa bile)
 create policy "Users can select own collections" 
 on public.user_collections for select 
 using (auth.uid() = user_id);
 
--- B. YENİ: Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir
+-- B. Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir
 create policy "Public Read Collections" 
 on public.user_collections for select 
 using (is_public = true);
