@@ -248,29 +248,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         const queryParam = await shareCollection(activeCollectionId);
         
         if (queryParam) {
-            // FIX: Robust URL generation for Cloud/Preview environments
-            let baseUrl = window.location.href;
-            
-            // 1. Remove 'blob:' prefix if it exists (common in IDX/Cloud previews)
-            if (baseUrl.startsWith('blob:')) {
-                baseUrl = baseUrl.replace('blob:', '');
-            }
-
-            // 2. Create clean URL object
-            const cleanUrl = new URL(baseUrl);
-            
-            // 3. Clear existing hash/search to prevent duplication
-            cleanUrl.hash = '';
-            cleanUrl.search = ''; 
-
-            // 4. Append the new query param (?list=... or ?ids=...)
-            // Since queryParam already contains '?', we append it carefully or use searchParams
-            const params = new URLSearchParams(queryParam);
-            params.forEach((value, key) => {
-                cleanUrl.searchParams.set(key, value);
-            });
-
-            const finalLink = cleanUrl.toString();
+            // FIX: Sabit Production URL kullanıyoruz
+            const PRODUCTION_URL = 'https://filmm-chi.vercel.app';
+            // Slash kontrolü yaparak birleştiriyoruz
+            const finalLink = `${PRODUCTION_URL}/${queryParam}`;
 
             navigator.clipboard.writeText(finalLink);
             showToast('Liste bağlantısı kopyalandı!', 'success');

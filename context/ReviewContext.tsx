@@ -7,8 +7,8 @@ const STORAGE_KEY = 'tria_user_reviews';
 
 interface ReviewContextType {
   reviews: Record<number, UserReview>;
-  addReview: (review: UserReview) => void;
-  removeReview: (movieId: number) => void;
+  addReview: (review: UserReview) => Promise<void>;
+  removeReview: (movieId: number) => Promise<void>;
   getReview: (movieId: number) => UserReview | undefined;
 }
 
@@ -78,7 +78,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Sync to LocalStorage (Backup for offline capability or Guest mode)
   useEffect(() => {
     if (!user || user.id.startsWith('mock-')) {
-        // FIX: Always save to localStorage, even if empty, to ensure deletions are persisted
         localStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
     }
   }, [reviews, user]);
@@ -101,13 +100,18 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     movie_id: review.movieId,
                     rating: review.rating,
                     comment: review.comment,
-                    has_spoiler: review.hasSpoiler,
+                    has_spoiler: review.hasSpoiler ?? false,
                     // created_at is automatic on insert
-                }, { onConflict: 'user_id, movie_id' }); // Requires unique constraint in DB
+                }, { onConflict: 'user_id,movie_id' }); // Ensure unique constraint matches without spaces if sensitive
 
-            if (error) throw error;
-        } catch (e) {
-            console.error("Cloud save failed", e);
+            if (error) {
+                // Throw error to be caught by catch block
+                throw error;
+            }
+        } catch (e: any) {
+            console.error("Cloud save failed:", e.message || e);
+            // Re-throw so UI knows it failed (optional, but good practice)
+            throw e;
         }
     }
   }, [user]);
@@ -123,13 +127,15 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 2. Persist deletion to Supabase
     if (user && !user.id.startsWith('mock-')) {
         try {
-            await supabase
+            const { error } = await supabase
                 .from('reviews')
                 .delete()
                 .eq('user_id', user.id)
                 .eq('movie_id', movieId);
-        } catch (e) {
-            console.error("Cloud delete failed", e);
+            
+            if (error) throw error;
+        } catch (e: any) {
+            console.error("Cloud delete failed:", e.message || e);
         }
     }
   }, [user]);

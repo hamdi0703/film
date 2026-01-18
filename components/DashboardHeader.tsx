@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useCollectionContext } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext'; // Import Auth Logic
 import { useToast } from '../context/ToastContext';
 

@@ -11,12 +11,13 @@ import ProfileModal, { ProfileTab } from './components/ProfileModal';
 import BottomNav from './components/BottomNav';
 import ErrorBoundary from './components/ErrorBoundary';
 import { supabase } from './services/supabaseClient';
-import { DetailSkeleton } from './components/skeletons/Skeletons'; // Reusing existing skeleton
+import { DetailSkeleton } from './components/skeletons/Skeletons';
 
 // --- PERFORMANCE: Code Splitting (Lazy Loading) ---
 const MovieDetailView = lazy(() => import('./components/MovieDetailView'));
 const ExploreView = lazy(() => import('./components/views/ExploreView'));
 const DashboardView = lazy(() => import('./components/views/DashboardView'));
+const SharedListView = lazy(() => import('./components/views/SharedListView'));
 
 // Simple Loading Spinner for View Transitions
 const ViewLoader = () => (
@@ -27,11 +28,12 @@ const ViewLoader = () => (
 
 const AppContent: React.FC = () => {
   // --- View State ---
-  const [viewMode, setViewMode] = useState<'explore' | 'dashboard'>('explore');
+  const [viewMode, setViewMode] = useState<'explore' | 'dashboard' | 'shared'>('explore');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>('PROFILE');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType>('movie');
+  const [isSharedLoading, setIsSharedLoading] = useState(false);
 
   // --- Shared Data ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +41,7 @@ const AppContent: React.FC = () => {
   const [genres, setGenres] = useState<Genre[]>([]);
 
   const { showToast } = useToast();
-  const { collections, activeCollectionId, loadSharedList, loadCloudList, resetCollections } = useCollectionContext();
+  const { loadSharedList, loadCloudList, exitSharedMode, resetCollections } = useCollectionContext();
 
   // Load Genres Globally
   useEffect(() => {
@@ -49,26 +51,42 @@ const AppContent: React.FC = () => {
       .catch(err => console.error("Failed to load genres", err));
   }, []);
 
-  // Shared List Loading Logic
+  // Shared List Loading Logic (URL Handler)
+  // This runs ONCE on mount to check for shared links
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sharedIds = params.get('ids');
-    const cloudListId = params.get('list');
+    const checkUrl = async () => {
+        const params = new URLSearchParams(window.location.search);
+        const cloudListId = params.get('list');
+        const sharedIds = params.get('ids');
 
-    if (cloudListId) {
-        loadCloudList(cloudListId).then(() => {
-            setViewMode('dashboard');
-        });
-    } else if (sharedIds) {
-        loadSharedList(sharedIds.split(',')).then(() => {
-           setViewMode('dashboard');
-        });
-    }
-  }, [loadSharedList, loadCloudList]);
+        if (cloudListId) {
+            setIsSharedLoading(true);
+            const success = await loadCloudList(cloudListId);
+            setIsSharedLoading(false);
+            
+            if (success) {
+                setViewMode('shared');
+            } else {
+                showToast('Liste bulunamadı veya erişim izni yok.', 'error');
+                // URL'i temizle ama sayfayı yenileme
+                const url = new URL(window.location.href);
+                url.searchParams.delete('list');
+                window.history.replaceState({}, '', url);
+            }
+        } else if (sharedIds) {
+            // Legacy Support
+            setIsSharedLoading(true);
+            await loadSharedList(sharedIds.split(','));
+            setIsSharedLoading(false);
+            setViewMode('shared');
+        }
+    };
+    
+    checkUrl();
+  }, [loadSharedList, loadCloudList, showToast]);
 
   // LISTEN FOR PASSWORD RECOVERY
   useEffect(() => {
-    // 1. Event Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === 'PASSWORD_RECOVERY') {
         showToast('Lütfen yeni şifrenizi belirleyin.', 'info');
@@ -77,7 +95,6 @@ const AppContent: React.FC = () => {
       }
     });
 
-    // 2. Manual Hash Check (Fallback)
     const checkRecoveryHash = () => {
         const hash = window.location.hash;
         if (hash && hash.includes('type=recovery')) {
@@ -113,6 +130,16 @@ const AppContent: React.FC = () => {
       setIsProfileOpen(false);
       setTimeout(() => setProfileInitialTab('PROFILE'), 300);
   };
+  
+  const handleExitSharedMode = () => {
+      exitSharedMode();
+      setViewMode('explore');
+      // Clean URL correctly without reloading
+      const url = new URL(window.location.href);
+      url.searchParams.delete('list');
+      url.searchParams.delete('ids');
+      window.history.pushState({}, '', url.pathname);
+  };
 
   // Detail View Overlay
   if (selectedMovie) {
@@ -129,7 +156,22 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const listCount = collections.find(c => c.id === activeCollectionId)?.movies.length || 0;
+  // Determine active view content
+  const renderContent = () => {
+      if (isSharedLoading) {
+          return <ViewLoader />;
+      }
+      
+      switch (viewMode) {
+          case 'dashboard':
+              return <DashboardView onSelectMovie={handleMovieSelect} genres={genres} />;
+          case 'shared':
+              return <SharedListView onSelectMovie={handleMovieSelect} genres={genres} onBack={handleExitSharedMode} />;
+          case 'explore':
+          default:
+              return <ExploreView searchQuery={searchQuery} genres={genres} onSelectMovie={handleMovieSelect} />;
+      }
+  };
 
   return (
     <div className="min-h-screen flex flex-col font-sans pb-16 md:pb-0">
@@ -142,47 +184,44 @@ const AppContent: React.FC = () => {
           />
       )}
       
-      <Header 
-        onSearchToggle={() => {
-            setIsSearchVisible(!isSearchVisible);
-            if(isSearchVisible) setSearchQuery('');
-        }}
-        isSearchVisible={isSearchVisible}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        viewMode={viewMode}
-        setViewMode={(mode) => {
-            setViewMode(mode);
-            if(mode === 'dashboard' && searchQuery) setSearchQuery('');
-        }}
-        listCount={listCount}
-        onOpenProfile={() => setIsProfileOpen(true)}
-      />
+      {/* Conditionally render header based on View Mode to keep Shared view simple */}
+      {viewMode !== 'shared' && (
+        <Header 
+            onSearchToggle={() => {
+                setIsSearchVisible(!isSearchVisible);
+                if(isSearchVisible) setSearchQuery('');
+            }}
+            isSearchVisible={isSearchVisible}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            viewMode={viewMode}
+            setViewMode={(mode) => {
+                setViewMode(mode);
+                if(mode === 'dashboard' && searchQuery) setSearchQuery('');
+            }}
+            listCount={0}
+            onOpenProfile={() => setIsProfileOpen(true)}
+        />
+      )}
       
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <ErrorBoundary>
             <Suspense fallback={<ViewLoader />}>
-                {viewMode === 'dashboard' ? (
-                    <DashboardView 
-                        onSelectMovie={handleMovieSelect}
-                        genres={genres}
-                    />
-                ) : (
-                    <ExploreView 
-                        searchQuery={searchQuery}
-                        genres={genres}
-                        onSelectMovie={handleMovieSelect}
-                    />
-                )}
+                {renderContent()}
             </Suspense>
         </ErrorBoundary>
       </main>
 
-      <BottomNav 
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        listCount={listCount}
-      />
+      {/* Hide Bottom Nav in Shared Mode for Cleaner Look */}
+      {viewMode !== 'shared' && (
+          <BottomNav 
+            viewMode={viewMode}
+            setViewMode={(mode) => {
+                setViewMode(mode);
+            }}
+            listCount={0}
+          />
+      )}
     </div>
   );
 };

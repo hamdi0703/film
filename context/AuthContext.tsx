@@ -5,6 +5,7 @@ import { useToast } from './ToastContext';
 interface User {
   id: string;
   email?: string;
+  created_at?: string; // EKLENDİ: Katılım tarihi için
   user_metadata?: {
     username?: string;
     avatar_url?: string;
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const MOCK_ADMIN_USER: User = {
   id: 'mock-admin-id-12345',
   email: 'admin@tria.app',
+  created_at: new Date().toISOString(),
   user_metadata: { username: 'Admin', avatar_url: '' },
   is_blocked: false
 };

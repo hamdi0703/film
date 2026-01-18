@@ -5,9 +5,9 @@ export const useReviews = (movieId: number) => {
 
   const review = getReview(movieId) || null;
 
-  const saveReview = (rating: number, comment: string, hasSpoiler: boolean = false) => {
+  const saveReview = async (rating: number, comment: string, hasSpoiler: boolean = false) => {
     try {
-      addReview({
+      await addReview({
         movieId,
         rating,
         comment,
@@ -16,13 +16,13 @@ export const useReviews = (movieId: number) => {
       });
       return true;
     } catch (error) {
-      console.error("Failed to save review", error);
+      console.error("Failed to save review:", error);
       return false;
     }
   };
 
-  const deleteReview = () => {
-    removeReview(movieId);
+  const deleteReview = async () => {
+    await removeReview(movieId);
   };
 
   return { review, saveReview, deleteReview };

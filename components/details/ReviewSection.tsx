@@ -15,6 +15,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [hasSpoiler, setHasSpoiler] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Viewer state
   const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(false);
@@ -35,22 +36,28 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
     }
   }, [review]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) {
         showToast('Lütfen bir puan verin', 'error');
         return;
     }
-    const success = saveReview(rating, comment, hasSpoiler);
+
+    setIsSaving(true);
+    const success = await saveReview(rating, comment, hasSpoiler);
+    setIsSaving(false);
+
     if (success) {
         showToast('İncelemeniz kaydedildi', 'success');
         setIsEditing(false);
+    } else {
+        showToast('Kaydedilirken bir sorun oluştu.', 'error');
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
       if(window.confirm('Bu incelemeyi silmek istediğinize emin misiniz?')) {
-          deleteReview();
+          await deleteReview();
           setRating(0);
           setComment('');
           setHasSpoiler(false);
@@ -227,9 +234,10 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ movieId, movieTitle }) =>
                 )}
                 <button 
                     type="submit"
-                    className="px-8 py-2.5 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all transform hover:scale-105 active:scale-95"
+                    disabled={isSaving}
+                    className="px-8 py-2.5 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100"
                 >
-                    Kaydet
+                    {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
                 </button>
             </div>
         </form>

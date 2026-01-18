@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useCollectionContext } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -37,6 +37,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
         const currentAvatar = user.user_metadata?.avatar_url;
         setSelectedAvatarId(currentAvatar && !currentAvatar.startsWith('http') ? currentAvatar : '1');
     }
+  }, [user]);
+
+  // Date Formatting for Join Date
+  const joinDate = useMemo(() => {
+    if (!user?.created_at) return null;
+    return new Date(user.created_at).toLocaleDateString('tr-TR', { 
+        year: 'numeric', 
+        month: 'long',
+        day: 'numeric' 
+    });
   }, [user]);
 
   const totalMovies = collections.reduce((acc, col) => acc + col.movies.length, 0);
@@ -138,7 +148,22 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
             </div>
             
             <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{username || user?.email}</h3>
-            <p className="text-xs text-neutral-500 mb-1">{user?.email}</p>
+            
+            {/* User Email */}
+            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                {user?.email}
+            </p>
+
+            {/* Join Date */}
+            {joinDate && (
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 mb-3 opacity-80">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Katılım: {joinDate}</span>
+                </div>
+            )}
+            
             <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
                 {currentPersona.name}
             </span>
