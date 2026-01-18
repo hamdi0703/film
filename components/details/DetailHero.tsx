@@ -13,7 +13,8 @@ const DetailHero: React.FC<DetailHeroProps> = ({ movie, onBack, onToggleCollecti
   const backdropUrl = movie.backdrop_path ? `${BACKDROP_BASE_URL}${movie.backdrop_path}` : null;
 
   return (
-    <div className="relative h-[50vh] md:h-[65vh] w-full overflow-hidden z-0">
+    // CHANGE: h-[50vh] -> h-[40vh] on mobile to fix zoomed-in feeling
+    <div className="relative h-[40vh] md:h-[65vh] w-full overflow-hidden z-0">
         {backdropUrl ? (
              <>
                 <img 
@@ -44,7 +45,7 @@ const DetailHero: React.FC<DetailHeroProps> = ({ movie, onBack, onToggleCollecti
             
             <button 
                 onClick={() => onToggleCollection(movie)}
-                className={`px-5 py-2.5 rounded-full backdrop-blur-md font-bold text-sm transition-all flex items-center gap-2 border ${
+                className={`px-4 py-2 md:px-5 md:py-2.5 rounded-full backdrop-blur-md font-bold text-xs md:text-sm transition-all flex items-center gap-2 border ${
                     isInCollection 
                     ? 'bg-red-500/90 border-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600' 
                     : 'bg-black/30 border-white/20 text-white hover:bg-white hover:text-black hover:border-white'
@@ -52,12 +53,12 @@ const DetailHero: React.FC<DetailHeroProps> = ({ movie, onBack, onToggleCollecti
             >
                 {isInCollection ? (
                     <>
-                        <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                        <svg className="w-4 h-4 md:w-5 md:h-5 fill-current" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                         <span className="hidden sm:inline">Listeden Çıkar</span>
                     </>
                 ) : (
                     <>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                         <span className="hidden sm:inline">Listeye Ekle</span>
                     </>
                 )}
