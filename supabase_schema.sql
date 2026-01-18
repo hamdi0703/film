@@ -1,77 +1,37 @@
+
 -- ==========================================
--- TRIA APP - GÜVENLİK VE RLS SIFIRLAMA (KESİN ÇÖZÜM)
+-- TRIA APP - MIGRATION & SECURITY UPDATE
 -- ==========================================
 
--- 1. TABLOLARIN VARLIĞINI KONTROL ET VE OLUŞTUR
-create table if not exists public.shared_lists (
-  id text primary key,
-  user_id uuid references auth.users not null,
-  name text not null,
-  movies jsonb not null, 
-  top_favorite_movies jsonb default '[null, null, null, null, null]'::jsonb,
-  top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+-- 1. MEVCUT TABLOYA SÜTUN EKLEME (MIGRATION)
+alter table public.user_collections 
+add column if not exists is_public boolean default false;
 
-create table if not exists public.user_collections (
-  id text primary key,
-  user_id uuid references auth.users not null,
-  name text not null,
-  movies jsonb default '[]'::jsonb,
-  top_favorite_movies jsonb default '[null, null, null, null, null]'::jsonb,
-  top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now())
-);
+alter table public.user_collections 
+add column if not exists share_token text unique;
 
--- 2. TÜM RLS POLİTİKALARINI SIFIRLA (Temiz Başlangıç)
-alter table public.shared_lists enable row level security;
-alter table public.user_collections enable row level security;
+alter table public.user_collections 
+add column if not exists description text;
 
--- Önce eskileri sil (Hata vermemesi için IF EXISTS)
+-- Token için index (Hızlı sorgulama için)
+create index if not exists idx_user_collections_token on public.user_collections(share_token);
+
+-- 2. RLS POLİTİKALARINI GÜNCELLEME
+-- Önceki politikaları temizle (User Select Own kalacak, Public Read ekleyeceğiz)
 drop policy if exists "Public Shared Read" on public.shared_lists;
-drop policy if exists "User Shared Insert" on public.shared_lists;
-drop policy if exists "Public shared lists access" on public.shared_lists;
-drop policy if exists "Auth insert shared lists" on public.shared_lists;
-drop policy if exists "Owner delete shared lists" on public.shared_lists;
-drop policy if exists "Users can manage their own collections" on public.user_collections;
-drop policy if exists "User Select Own" on public.user_collections;
-drop policy if exists "User Insert Own" on public.user_collections;
-drop policy if exists "User Update Own" on public.user_collections;
-drop policy if exists "User Delete Own" on public.user_collections;
+drop policy if exists "Public Read Collections" on public.user_collections;
 
--- 3. YENİ VE GÜVENLİ POLİTİKALAR
-
--- Shared Lists: Herkes okuyabilir, sadece sahibi ekleyebilir/silebilir.
-create policy "Anyone can read shared lists" 
-on public.shared_lists for select 
-using (true);
-
-create policy "Users can insert shared lists" 
-on public.shared_lists for insert 
-with check (auth.uid() = user_id);
-
-create policy "Users can delete own shared lists" 
-on public.shared_lists for delete 
-using (auth.uid() = user_id);
-
--- User Collections: Sadece sahibi her şeyi yapabilir.
+-- Politikalar:
+-- A. Kullanıcı kendi koleksiyonunu her türlü yönetir (Mevcut, tekrar emin olalım)
+drop policy if exists "Users can select own collections" on public.user_collections;
 create policy "Users can select own collections" 
 on public.user_collections for select 
 using (auth.uid() = user_id);
 
-create policy "Users can insert own collections" 
-on public.user_collections for insert 
-with check (auth.uid() = user_id);
+-- B. YENİ: Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir
+create policy "Public Read Collections" 
+on public.user_collections for select 
+using (is_public = true);
 
-create policy "Users can update own collections" 
-on public.user_collections for update 
-using (auth.uid() = user_id);
-
-create policy "Users can delete own collections" 
-on public.user_collections for delete 
-using (auth.uid() = user_id);
-
--- 4. PERFORMANS İÇİN INDEX (Opsiyonel ama önerilir)
-create index if not exists idx_shared_lists_user_id on public.shared_lists(user_id);
-create index if not exists idx_user_collections_user_id on public.user_collections(user_id);
+-- Not: Update/Insert/Delete politikaları context içinde zaten sadece owner'a izin veriyor.
+-- Shared Lists tablosu artık 'Legacy' moduna geçtiği için ona dokunmuyoruz.

@@ -1,5 +1,4 @@
 
-
 export type MediaType = 'movie' | 'tv';
 
 export interface Cast {
@@ -78,9 +77,10 @@ export interface GenreResponse {
 export interface Collection {
   id: string;
   name: string;
+  description?: string; // New: Liste açıklaması
+  isPublic?: boolean;   // New: Paylaşım durumu
+  shareToken?: string;  // New: Benzersiz paylaşım linki
   movies: Movie[];
-  // Deprecated: topFavorites (legacy support)
-  // New Structure: Separate arrays for Movie and TV
   topFavoriteMovies?: (number | null)[]; // 5 slots
   topFavoriteShows?: (number | null)[];  // 5 slots
   owner?: string; // Username of the sharer

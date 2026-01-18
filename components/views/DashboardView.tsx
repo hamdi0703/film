@@ -1,10 +1,11 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Movie, Genre } from '../../types';
 import { useCollectionContext } from '../../context/CollectionContext';
 import { useReviewContext } from '../../context/ReviewContext';
 import MovieCard from '../MovieCard';
 import DashboardHeader from '../DashboardHeader';
-import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
+import CollectionAnalytics from '../analytics/CollectionAnalytics'; 
 import CollectionControls, { SortOptionType, GroupOptionType, FilterStatusType } from '../dashboard/CollectionControls';
 import TopFavorites from '../dashboard/TopFavorites';
 import FavoriteSelectorModal from '../dashboard/FavoriteSelectorModal';
@@ -28,22 +29,19 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     activeCollectionId, 
     setActiveCollectionId, 
     createCollection, 
-    deleteCollection, 
     toggleMovieInCollection, 
     checkIsSelected,
     updateTopFavorite,
-    shareCollection,
-    refreshCollectionData // VERİ ONARIM FONKSİYONU
+    refreshCollectionData
   } = useCollectionContext();
 
   const { reviews } = useReviewContext();
   
   // --- Auto-Repair Data Effect ---
-  // Eğer koleksiyondaki filmlerde detay eksikse (cast vs), arka planda tamamla.
   useEffect(() => {
       refreshCollectionData();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCollectionId]); // Sadece koleksiyon değiştiğinde kontrol et
+  }, [activeCollectionId]);
 
   // --- View Control State ---
   const [activeTab, setActiveTab] = useState<TabOption>('movie');
@@ -59,7 +57,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Top Favorites Selector State
   const [selectorSlotIndex, setSelectorSlotIndex] = useState<number | null>(null);
-  const [isSharing, setIsSharing] = useState(false);
 
   // 1. Raw Data from Context
   const activeCollection = collections.find(c => c.id === activeCollectionId);
@@ -107,8 +104,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     let result = [...tabFilteredMovies];
 
     // 1. ADVANCED FILTERING
-    
-    // Status Filter (Rated / Reviewed)
     if (filterStatus === 'rated') {
         result = result.filter(m => {
             const r = reviews[m.id];
@@ -144,16 +139,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     result.sort((a, b) => {
         const dateA = a.release_date || a.first_air_date;
         const dateB = b.release_date || b.first_air_date;
-        
         const ratingA = a.vote_average || 0;
         const ratingB = b.vote_average || 0;
-        
         const runtimeA = getTotalRuntime(a);
         const runtimeB = getTotalRuntime(b);
-        
         const titleA = a.title || a.name || '';
         const titleB = b.title || b.name || '';
-
         const addedA = a.addedAt ? new Date(a.addedAt).getTime() : 0;
         const addedB = b.addedAt ? new Date(b.addedAt).getTime() : 0;
 
@@ -176,7 +167,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     const grouped: Record<string, Movie[]> = {};
 
     if (groupOption === 'none') {
-        // Use meaningful label based on active tab
         const label = activeTab === 'movie' ? 'Filmler' : 'Diziler';
         grouped[label] = result;
     } else {
@@ -237,33 +227,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     return { groups: grouped, keys: sortedKeys, totalCount: result.length };
   }, [tabFilteredMovies, filterGenre, filterYear, filterMinRating, filterStatus, sortOption, groupOption, genres, activeTab, reviews]);
 
-
-  const handleShareList = async () => {
-    if (activeCollectionMovies.length === 0) return;
-    if (isSharing) return;
-
-    setIsSharing(true);
-    showToast('Bağlantı oluşturuluyor...', 'info');
-
-    try {
-        const queryParam = await shareCollection(activeCollectionId);
-        
-        if (queryParam) {
-            const PRODUCTION_URL = 'https://filmm-chi.vercel.app';
-            const finalLink = `${PRODUCTION_URL}/${queryParam}`;
-            navigator.clipboard.writeText(finalLink);
-            showToast('Liste bağlantısı kopyalandı!', 'success');
-        } else {
-             showToast('Paylaşım sırasında bir hata oluştu.', 'error');
-        }
-    } catch (e) {
-        showToast('Beklenmedik bir hata oluştu.', 'error');
-        console.error(e);
-    } finally {
-        setIsSharing(false);
-    }
-  };
-
   const handleSlotSelect = (movieId: number) => {
       if (selectorSlotIndex !== null) {
           updateTopFavorite(selectorSlotIndex, movieId, activeTab); 
@@ -287,8 +250,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             activeCollectionId={activeCollectionId}
             onSwitchCollection={setActiveCollectionId}
             onCreateCollection={createCollection}
-            onDeleteCollection={deleteCollection}
-            onShare={handleShareList}
         />
         
         {/* Tab Bar */}
@@ -302,9 +263,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                         : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-300 scale-95 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50'
                     }`}
                 >
-                     <svg className={`w-4 h-4 ${activeTab === 'movie' ? 'text-indigo-500' : 'text-current'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                    </svg>
                     <span>Filmler</span>
                 </button>
                 <button
@@ -315,9 +273,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                         : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-300 scale-95 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50'
                     }`}
                 >
-                     <svg className={`w-4 h-4 ${activeTab === 'tv' ? 'text-indigo-500' : 'text-current'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
                     <span>Diziler</span>
                 </button>
             </div>
@@ -344,7 +299,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             />
         )}
 
-        {/* --- ANALİTİK BÖLÜMÜ (TEK BİLEŞEN) --- */}
+        {/* ANALİTİK */}
         {tabFilteredMovies.length > 0 && (
             <div className="mb-12">
                  <ErrorBoundary>
@@ -358,11 +313,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* LIST CONTROLS & GRID */}
         <div className="mb-8">
-            <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-6 px-1 flex items-center gap-2">
-                <span className={`w-1 h-6 rounded-full ${activeTab === 'movie' ? 'bg-indigo-500' : 'bg-purple-500'}`}></span>
-                {activeTab === 'movie' ? 'Film Arşivi' : 'Dizi Arşivi'}
-            </h3>
-            
             <CollectionControls 
                 genres={genres}
                 currentSort={sortOption}
@@ -380,7 +330,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                 resultCount={processedData.totalCount}
             />
             
-            {/* RENDER GROUPS */}
             {processedData.keys.length > 0 ? (
                 <div className="space-y-12">
                     {processedData.keys.map(groupKey => (
@@ -419,24 +368,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                             ? `Bu listede henüz ${activeTab === 'movie' ? 'film' : 'dizi'} yok.` 
                             : "Seçilen kriterlere uygun içerik bulunamadı."}
                     </p>
-                    {tabFilteredMovies.length > 0 && (
-                        <button 
-                            onClick={() => { 
-                                setFilterGenre(null); 
-                                setFilterYear(null);
-                                setFilterMinRating(null);
-                                setFilterStatus('all');
-                            }}
-                            className="text-indigo-500 hover:underline font-bold text-sm"
-                        >
-                            Tüm Filtreleri Temizle
-                        </button>
-                    )}
                 </div>
             )}
         </div>
 
-        {/* Global Empty State */}
         {activeCollectionMovies.length === 0 && (
           <div className="flex flex-col items-center justify-center mt-10 text-neutral-500 dark:text-neutral-400 text-center">
              <div className="w-20 h-20 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center mb-6">

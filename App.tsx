@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense, lazy, useRef } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -19,7 +20,6 @@ const ExploreView = lazy(() => import('./components/views/ExploreView'));
 const DashboardView = lazy(() => import('./components/views/DashboardView'));
 const SharedListView = lazy(() => import('./components/views/SharedListView'));
 
-// Loading Spinner
 const ViewLoader = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
     <div className="w-10 h-10 border-4 border-neutral-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -27,19 +27,16 @@ const ViewLoader = () => (
 );
 
 const AppContent: React.FC = () => {
-  // --- OPTIMIZED INITIALIZATION (SMART BOOT) ---
-  // Uygulama render edilmeden ÖNCE URL parametrelerine bak.
-  // Eğer ?list= varsa, varsayılan görünümü 'shared' yap.
-  // Böylece 'explore' modu asla mount olmaz ve gereksiz API çağrısı yapmaz.
   const [viewMode, setViewMode] = useState<'explore' | 'dashboard' | 'shared'>(() => {
       const params = new URLSearchParams(window.location.search);
-      const hasShareLink = params.get('list') || params.get('ids');
+      // New: collection param (token) | Old: list (id), ids (manual)
+      const hasShareLink = params.get('collection') || params.get('list') || params.get('ids');
       return hasShareLink ? 'shared' : 'explore';
   });
 
   const [isSharedLoading, setIsSharedLoading] = useState(() => {
       const params = new URLSearchParams(window.location.search);
-      return !!(params.get('list') || params.get('ids'));
+      return !!(params.get('collection') || params.get('list') || params.get('ids'));
   });
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -47,17 +44,15 @@ const AppContent: React.FC = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType>('movie');
 
-  // --- Shared Data ---
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [genres, setGenres] = useState<Genre[]>([]);
 
   const { showToast } = useToast();
-  const { loadSharedList, loadCloudList, exitSharedMode, resetCollections } = useCollectionContext();
+  const { loadSharedList, loadCloudList, loadCollectionByToken, exitSharedMode, resetCollections } = useCollectionContext();
 
   const urlCheckRef = useRef(false);
 
-  // Load Genres Globally
   useEffect(() => {
     const tmdb = new TmdbService();
     tmdb.getGenres('movie')
@@ -65,52 +60,66 @@ const AppContent: React.FC = () => {
       .catch(err => console.error("Failed to load genres", err));
   }, []);
 
-  // --- ROUTING LOGIC (MOUNT ONLY) ---
+  // --- ROUTING LOGIC ---
   useEffect(() => {
     if (urlCheckRef.current) return; 
     urlCheckRef.current = true;
 
     const checkUrl = async () => {
         const params = new URLSearchParams(window.location.search);
-        const cloudListId = params.get('list');
-        const sharedIds = params.get('ids');
+        
+        const token = params.get('collection');
+        const legacyListId = params.get('list');
+        const legacyIds = params.get('ids');
 
-        if (cloudListId) {
-            // State lazy init ile zaten true geldi ama garanti olsun
+        if (token) {
             setIsSharedLoading(true);
             try {
-                const success = await loadCloudList(cloudListId);
+                const success = await loadCollectionByToken(token);
                 if (success) {
                     setViewMode('shared');
-                    // URL korunuyor
                 } else {
-                    showToast('Liste bulunamadı veya erişim izni yok.', 'error');
-                    // Hata varsa URL temizle ve explore'a dön
+                    showToast('Liste bulunamadı veya gizli.', 'error');
+                    // URL temizle
                     const url = new URL(window.location.href);
-                    url.searchParams.delete('list');
+                    url.searchParams.delete('collection');
                     window.history.replaceState({}, '', url.pathname);
                     setViewMode('explore');
                 }
             } catch (e) {
-                console.error(e);
-                showToast('Liste yüklenirken hata oluştu.', 'error');
+                showToast('Hata oluştu.', 'error');
                 setViewMode('explore');
             } finally {
                 setIsSharedLoading(false);
             }
-        } else if (sharedIds) {
+        }
+        else if (legacyListId) {
             setIsSharedLoading(true);
-            await loadSharedList(sharedIds.split(','));
+            try {
+                const success = await loadCloudList(legacyListId);
+                if (success) {
+                    setViewMode('shared');
+                } else {
+                    showToast('Arşivlenmiş liste bulunamadı.', 'error');
+                    setViewMode('explore');
+                }
+            } catch (e) {
+                setViewMode('explore');
+            } finally {
+                setIsSharedLoading(false);
+            }
+        } else if (legacyIds) {
+            setIsSharedLoading(true);
+            await loadSharedList(legacyIds.split(','));
             setIsSharedLoading(false);
             setViewMode('shared');
         }
     };
     
-    // Sadece paylaşılan link varsa çalıştır
     if (isSharedLoading) {
         checkUrl();
     }
-  }, [loadCloudList, loadSharedList, showToast]); 
+  }, [loadCollectionByToken, loadCloudList, loadSharedList, showToast]); 
 
   // Password Recovery Logic
   useEffect(() => {
@@ -156,13 +165,12 @@ const AppContent: React.FC = () => {
       setViewMode('explore');
       
       const url = new URL(window.location.href);
+      url.searchParams.delete('collection');
       url.searchParams.delete('list');
       url.searchParams.delete('ids');
       window.history.pushState({}, '', url.pathname);
   };
 
-  // --- RENDER CONTENT ---
-  
   if (selectedMovie) {
     return (
       <div className="min-h-screen font-sans">
@@ -202,7 +210,6 @@ const AppContent: React.FC = () => {
           />
       )}
       
-      {/* Header Shared modunda GİZLENİR */}
       {viewMode !== 'shared' && !isSharedLoading && (
         <Header 
             onSearchToggle={() => {
@@ -230,7 +237,6 @@ const AppContent: React.FC = () => {
         </ErrorBoundary>
       </main>
 
-      {/* Bottom Nav Shared modunda GİZLENİR */}
       {viewMode !== 'shared' && !isSharedLoading && (
           <BottomNav 
             viewMode={viewMode === 'dashboard' ? 'dashboard' : 'explore'}
