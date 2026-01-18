@@ -8,12 +8,15 @@ interface DirectorSpotlightProps {
 
 const DirectorSpotlight: React.FC<DirectorSpotlightProps> = ({ movies }) => {
   const data: AnalyticsItem[] = useMemo(() => {
-    if (!movies) return [];
+    if (!movies || !Array.isArray(movies)) return [];
 
     const directorCounts: Record<number, { name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
-      const director = m.credits?.crew?.find(c => c.job === 'Director');
+      // Safe access
+      const crew = m.credits?.crew || [];
+      const director = crew.find(c => c.job === 'Director');
+      
       if (director) {
         if (!directorCounts[director.id]) {
             directorCounts[director.id] = { 

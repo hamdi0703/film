@@ -8,13 +8,16 @@ interface ActorSpotlightProps {
 
 const ActorSpotlight: React.FC<ActorSpotlightProps> = ({ movies }) => {
   const data: AnalyticsItem[] = useMemo(() => {
-    if (!movies) return [];
+    if (!movies || !Array.isArray(movies)) return [];
 
     const actorCounts: Record<number, { name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
+      // Safe access: ensure credits and cast exist before mapping
+      const cast = m.credits?.cast || [];
+      
       // Look at top 10 cast members per movie
-      m.credits?.cast?.slice(0, 10).forEach(actor => {
+      cast.slice(0, 10).forEach(actor => {
         if (!actorCounts[actor.id]) {
           actorCounts[actor.id] = { 
               name: actor.name, 
