@@ -225,14 +225,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       const collection = collections.find(c => c.id === collectionId);
       if (!collection) return null;
+      
+      if (collection.movies.length === 0) {
+          showToast('Boş bir listeyi paylaşamazsınız.', 'error');
+          return null;
+      }
 
       const shareId = generateUniqueShareId();
       const tmdb = new TmdbService();
 
+      // UI Geri Bildirimi: Verilerin toplandığını kullanıcıya bildir
+      showToast('Analiz verileri hazırlanıyor, lütfen bekleyin...', 'info');
+
       // --- CRITICAL UPDATE: ENRICH DATA BEFORE SHARING ---
-      // Eğer filmler arama sayfasından eklenmişse 'credits' bilgisi eksiktir.
-      // Paylaşmadan önce eksik verileri tamamlıyoruz (Hydration).
-      
       const enrichedMovies = await Promise.all(collection.movies.map(async (movie) => {
           // Eğer zaten credits ve cast verisi doluysa olduğu gibi kullan
           if (movie.credits && movie.credits.cast && movie.credits.cast.length > 0) {
@@ -241,28 +246,25 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           // Veri eksikse API'den çek
           try {
-             // TV mi Film mi olduğunu anlamaya çalış
              const isTv = !!(movie.name || movie.first_air_date);
              const type = isTv ? 'tv' : 'movie';
              
-             // Detay isteği at
+             // Detay isteği at (append_to_response=credits otomatik eklenir service içinde)
              const fullDetails = await tmdb.getMovieDetail(movie.id, type);
              
-             // Mevcut objeyi, yeni gelen detaylarla birleştir (credits, created_by vs. gelir)
              return { ...movie, ...fullDetails };
           } catch (e) {
-              // Hata olursa eski haliyle devam et (Listeyi patlatma)
               console.warn(`Could not enrich movie ${movie.id}`, e);
               return movie;
           }
       }));
 
-      // Veriyi Paylaşım İçin Optimize Et (Payload boyutunu düşür)
+      // Veriyi Paylaşım İçin Optimize Et
       const optimizedMovies = enrichedMovies.map(movie => {
           let credits = undefined;
           if (movie.credits) {
               credits = {
-                  // Sadece ilk 15 oyuncuyu al (Analiz için yeterli)
+                  // Sadece ilk 15 oyuncuyu al (Payload küçültmek için)
                   cast: (movie.credits.cast || []).slice(0, 15).map(c => ({
                       id: c.id, 
                       name: c.name, 
@@ -270,7 +272,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                       profile_path: c.profile_path,
                       order: c.order
                   })),
-                  // Yönetmenleri al
+                  // Yönetmenleri al (Director)
                   crew: (movie.credits.crew || []).filter(p => p.job === 'Director').map(c => ({
                       id: c.id,
                       name: c.name,
@@ -292,16 +294,16 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               first_air_date: movie.first_air_date,
               genre_ids: movie.genre_ids,
               genres: movie.genres,
-              overview: movie.overview ? movie.overview.substring(0, 200) + '...' : undefined, // Özet kısalt
+              overview: movie.overview ? movie.overview.substring(0, 200) + '...' : undefined,
               runtime: movie.runtime,
               episode_run_time: movie.episode_run_time,
               number_of_seasons: movie.number_of_seasons,
               number_of_episodes: movie.number_of_episodes,
               status: movie.status,
-              created_by: movie.created_by,
+              created_by: movie.created_by, // TV Creator'ları buradan gelir
               production_countries: movie.production_countries,
               addedAt: movie.addedAt,
-              credits: credits // Artık dolu!
+              credits: credits // Zenginleştirilmiş veri
           }; 
       });
 
@@ -309,25 +311,24 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           id: shareId,
           user_id: user.id, 
           name: collection.name, 
-          movies: optimizedMovies
+          movies: optimizedMovies,
+          top_favorite_movies: collection.topFavoriteMovies,
+          top_favorite_shows: collection.topFavoriteShows
       };
 
       try {
-        payload.top_favorite_movies = collection.topFavoriteMovies;
-        payload.top_favorite_shows = collection.topFavoriteShows;
-        
         const { error } = await supabase.from('shared_lists').insert(payload);
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase insert error:", error);
+            throw error;
+        }
+        return `?list=${shareId}`;
         
       } catch (err) {
-         console.warn("Saving with favorites failed, trying basics...", err);
-         delete payload.top_favorite_movies;
-         delete payload.top_favorite_shows;
-         const { error: retryError } = await supabase.from('shared_lists').insert(payload);
-         if (retryError) return null;
+         console.error("Share failed completely:", err);
+         showToast('Liste kaydedilirken bir hata oluştu.', 'error');
+         return null;
       }
-      
-      return `?list=${shareId}`;
   };
 
   const exitSharedMode = useCallback(() => {
