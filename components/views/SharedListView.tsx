@@ -29,7 +29,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
 
   const allMovies = useMemo(() => sharedList?.movies || [], [sharedList]);
 
-  // Filter movies based on Active Tab
+  // Filtreleme: Film veya Dizi
   const filteredMovies = useMemo(() => {
       return allMovies.filter(m => {
           const isTv = !!(m.name || m.first_air_date);
@@ -37,30 +37,29 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
       });
   }, [allMovies, activeTab]);
 
-  // Determine Favorites for Showcase
-  // Logic: Use stored favorites if available, otherwise fallback to top 5 highest rated in the list
+  // Vitrin Favorileri Mantığı
   const showcaseFavorites = useMemo(() => {
       if (!sharedList) return [null, null, null, null, null];
       
       const storedFavs = activeTab === 'movie' ? sharedList.topFavoriteMovies : sharedList.topFavoriteShows;
       
-      // If we have explicit favorites, use them
+      // Eğer kayıtlı favori varsa kullan
       if (storedFavs && storedFavs.some(id => id !== null)) {
           return storedFavs;
       }
       
-      // Automatic Fallback: Top 5 Highest Rated
+      // Yoksa otomatik olarak en yüksek puanlı 5 taneyi seç
       const sortedByRating = [...filteredMovies].sort((a, b) => b.vote_average - a.vote_average).slice(0, 5);
       const automaticIds = sortedByRating.map(m => m.id);
       
-      // Pad with nulls if less than 5
+      // 5'e tamamla
       while (automaticIds.length < 5) {
           automaticIds.push(null as any);
       }
       return automaticIds;
   }, [sharedList, filteredMovies, activeTab]);
 
-  // Handle Missing List
+  // Liste yoksa
   if (!sharedList) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in text-center px-4">
@@ -86,7 +85,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
   return (
     <div className="animate-slide-in-up pb-20 pt-4 max-w-6xl mx-auto">
       
-      {/* 1. HEADER */}
+      {/* 1. BAŞLIK */}
       <div className="text-center mb-10 px-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider mb-6 border border-indigo-100 dark:border-indigo-800">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
@@ -109,7 +108,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
           </p>
       </div>
 
-      {/* 2. MEDIA TYPE TABS */}
+      {/* 2. TAB SEÇİMİ (Film/Dizi) */}
       <MediaTypeNavbar 
          activeType={activeTab} 
          onChange={(t) => setActiveTab(t)} 
@@ -117,18 +116,18 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
 
       {filteredMovies.length > 0 ? (
           <>
-            {/* 3. SHOWCASE (VITRIN) - READ ONLY */}
+            {/* 3. VİTRİN (Read Only) */}
             <div className="mb-12">
                 <TopFavorites 
                     favorites={showcaseFavorites}
                     collectionMovies={filteredMovies}
-                    onSlotClick={() => {}} // Read Only: No Action
+                    onSlotClick={() => {}} // Salt okunur
                     type={activeTab}
-                    readOnly={true} // Disable hover effects
+                    readOnly={true} 
                 />
             </div>
 
-            {/* 4. ANALYTICS GRID (FULL SET) */}
+            {/* 4. İSTATİSTİK GRİDİ - TÜM BİLEŞENLER EKLENDİ */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 items-start">
                 <ErrorBoundary fullHeight>
                     <StatsOverview movies={filteredMovies} />
@@ -137,15 +136,16 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                      <GenreChart 
                          movies={filteredMovies} 
                          genres={genres} 
-                         onGenreClick={() => {}} // No filtering in shared view
                      />
                 </ErrorBoundary>
                 <ErrorBoundary fullHeight>
                      <ErasChart movies={filteredMovies} />
                 </ErrorBoundary>
+                {/* EKSİK OLAN OYUNCU LİSTESİ */}
                 <ErrorBoundary fullHeight>
                      <ActorSpotlight movies={filteredMovies} />
                 </ErrorBoundary>
+                {/* EKSİK OLAN YÖNETMEN LİSTESİ (SARI LİSTE) */}
                 <ErrorBoundary fullHeight>
                      <DirectorSpotlight movies={filteredMovies} />
                 </ErrorBoundary>
@@ -154,7 +154,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                 </ErrorBoundary>
             </div>
 
-            {/* 5. CONTENT GRID */}
+            {/* 5. FİLM GRİDİ */}
             <div className="mb-8">
                  <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-6 px-1 flex items-center gap-2">
                     <span className={`w-1 h-6 rounded-full ${activeTab === 'movie' ? 'bg-indigo-500' : 'bg-purple-500'}`}></span>
@@ -175,7 +175,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
             </div>
           </>
       ) : (
-          /* Empty State for Tab */
+          /* Boş Durum */
           <div className="flex flex-col items-center justify-center py-20 text-neutral-500 bg-neutral-50 dark:bg-neutral-900 rounded-3xl border border-neutral-200 dark:border-neutral-800 mx-4">
              <div className="w-16 h-16 bg-neutral-200 dark:bg-neutral-800 rounded-full flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -186,7 +186,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
           </div>
       )}
 
-      {/* 6. FOOTER CTA */}
+      {/* 6. ALT BİLGİ */}
       <div className="mt-24 pt-12 border-t border-neutral-200 dark:border-neutral-800 text-center">
            <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">Beğendiniz mi?</h3>
            <p className="text-neutral-500 mb-8">Siz de kendi film ve dizi koleksiyonunuzu oluşturun.</p>

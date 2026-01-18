@@ -13,10 +13,10 @@ const ActorSpotlight: React.FC<ActorSpotlightProps> = ({ movies }) => {
     const actorCounts: Record<number, { name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
-      // Safe access: ensure credits and cast exist before mapping
+      // Düzeltme: Credits veya Cast null gelebilir, boş dizi ile önlem al.
       const cast = m.credits?.cast || [];
       
-      // Look at top 10 cast members per movie
+      // Sadece ilk 10 oyuncuyu al (Başroller)
       cast.slice(0, 10).forEach(actor => {
         if (!actorCounts[actor.id]) {
           actorCounts[actor.id] = { 
@@ -37,7 +37,7 @@ const ActorSpotlight: React.FC<ActorSpotlightProps> = ({ movies }) => {
             image: a.image
         }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 15);
+        .slice(0, 15); // Maksimum 15 veri hazırla (Card bunu 10'a kesecek)
 
   }, [movies]);
 
