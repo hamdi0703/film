@@ -99,42 +99,44 @@ const TimelineWidget = ({ decades }: { decades: { label: string; count: number }
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
                         Zaman Tüneli
                     </h3>
                     <p className="text-lg font-bold text-neutral-900 dark:text-white">Yıllara Göre Dağılım</p>
                 </div>
             </div>
 
-            <div className="flex items-end justify-between gap-3 h-48 w-full border-b border-neutral-100 dark:border-neutral-800 pb-2">
+            <div className="flex items-end justify-between gap-2 md:gap-4 h-52 w-full border-b border-neutral-100 dark:border-neutral-800 pb-4">
                 {decades.length > 0 ? decades.map((decade, idx) => {
-                    // Minimum görünürlük için %5 taban yükseklik
+                    // Minimum görünürlük için %8 taban yükseklik
                     const percentage = (decade.count / maxCount) * 100;
-                    const height = Math.max(percentage, 5); 
+                    const height = Math.max(percentage, 8); 
                     
                     return (
                         <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                             {/* Tooltip */}
-                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-neutral-900 text-white dark:bg-white dark:text-black text-[10px] font-bold py-1 px-2 rounded transform translate-y-2 group-hover:translate-y-0 shadow-lg pointer-events-none z-10 whitespace-nowrap">
+                            <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-neutral-900 text-white dark:bg-white dark:text-black text-[10px] font-bold py-1.5 px-2.5 rounded-lg transform translate-y-2 group-hover:translate-y-0 shadow-xl pointer-events-none z-20 whitespace-nowrap">
                                 {decade.count} Yapım
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-neutral-900 dark:bg-white rotate-45"></div>
                             </div>
                             
-                            {/* Bar */}
+                            {/* Bar Container */}
                             <div 
-                                className="w-full max-w-[40px] rounded-t-lg bg-teal-100 dark:bg-teal-900/30 overflow-hidden relative transition-all duration-500"
+                                className="w-full max-w-[32px] md:max-w-[48px] rounded-t-lg bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative transition-transform duration-300 group-hover:scale-105"
                                 style={{ height: `${height}%` }}
                             >
-                                <div className="absolute bottom-0 left-0 right-0 top-0 bg-teal-500 opacity-70 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                {/* Gradient Fill */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-indigo-600 via-indigo-400 to-indigo-300 dark:from-indigo-700 dark:via-indigo-500 dark:to-indigo-400 opacity-90 group-hover:opacity-100 transition-opacity duration-300"></div>
                             </div>
                             
                             {/* Label */}
-                            <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-3 -rotate-45 origin-top-left translate-y-2 whitespace-nowrap">
+                            <span className="text-[9px] md:text-[10px] font-bold text-neutral-600 dark:text-neutral-400 mt-3 -rotate-45 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors origin-center whitespace-nowrap">
                                 {decade.label}
                             </span>
                         </div>
                     );
                 }) : (
-                    <div className="w-full flex items-center justify-center text-neutral-400 text-sm h-full italic">Veri bulunamadı</div>
+                    <div className="w-full flex items-center justify-center text-neutral-400 text-sm h-full italic opacity-50">Veri bulunamadı</div>
                 )}
             </div>
         </div>

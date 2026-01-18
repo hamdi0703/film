@@ -90,7 +90,7 @@ const MovieDetailView: React.FC<MovieDetailViewProps> = ({
   const isInCollection = checkIsSelected(movie.id);
 
   return (
-    <div className="min-h-screen bg-vista-light dark:bg-black animate-slide-in-right pb-20">
+    <div className="min-h-screen bg-vista-light dark:bg-black animate-slide-in-right pb-20 w-full overflow-x-hidden">
       
       {/* Hero Section */}
       <DetailHero 
@@ -101,30 +101,35 @@ const MovieDetailView: React.FC<MovieDetailViewProps> = ({
       />
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-24 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-24 md:-mt-32 relative z-10">
         <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
             
-            {/* Left Column: Poster */}
-            <div className="hidden md:block flex-shrink-0 w-64 lg:w-80">
-                <img 
-                    src={posterUrl} 
-                    alt={displayTitle} 
-                    className="w-full rounded-2xl shadow-2xl border-4 border-white dark:border-neutral-800"
-                />
+            {/* Left Column: Poster - Fixed Width/Height Ratio to prevent shifting */}
+            <div className="hidden md:block flex-shrink-0 w-64 lg:w-80 relative z-20">
+                <div className="aspect-[2/3] rounded-2xl shadow-2xl border-4 border-white dark:border-neutral-900 overflow-hidden bg-neutral-800">
+                    <img 
+                        src={posterUrl} 
+                        alt={displayTitle} 
+                        className="w-full h-full object-cover"
+                    />
+                </div>
             </div>
 
             {/* Right Column: Info & Stats */}
-            <div className="flex-1 pt-4 md:pt-24">
+            <div className="flex-1 pt-4 md:pt-32">
                 
                 {/* Mobile Poster + Title Header */}
                 <div className="flex gap-4 md:block mb-6">
-                    <img 
-                        src={posterUrl} 
-                        className="w-24 h-36 rounded-lg shadow-lg md:hidden object-cover" 
-                        alt="Poster"
-                    />
-                    <div>
-                        <h1 className="text-3xl md:text-5xl font-bold text-neutral-900 dark:text-white leading-tight mb-2">
+                    <div className="w-28 h-40 flex-shrink-0 rounded-lg shadow-xl md:hidden overflow-hidden border-2 border-white dark:border-neutral-800 relative z-20">
+                        <img 
+                            src={posterUrl} 
+                            className="w-full h-full object-cover" 
+                            alt="Poster"
+                        />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-2xl md:text-5xl font-bold text-neutral-900 dark:text-white leading-tight mb-2 line-clamp-3">
                             {displayTitle}
                         </h1>
                         <div className="flex flex-wrap items-center gap-3 text-sm md:text-base text-neutral-600 dark:text-neutral-400 font-medium">

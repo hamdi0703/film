@@ -366,9 +366,10 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             return col;
         }));
-        showToast('Listeden çıkarıldı', 'info');
+        // REMOVED: showToast('Listeden çıkarıldı', 'info'); 
+        // Reason: Visual feedback from the heart icon is sufficient and less noisy.
     } else {
-        showToast('Ekleniyor...', 'info'); 
+        // REMOVED: showToast('Ekleniyor...', 'info');
         try {
             const tmdb = new TmdbService();
             const isTv = !!(movie.name || movie.first_air_date);
@@ -383,11 +384,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }
                 return col;
             }));
-            showToast('Listeye eklendi', 'success');
+            // REMOVED: showToast('Listeye eklendi', 'success');
+            // Reason: Visual feedback from the heart icon is sufficient.
         } catch (e) {
             const fallbackMovie = { ...movie, addedAt: new Date().toISOString() };
             setCollections(prev => prev.map(col => col.id === activeCollectionId ? { ...col, movies: [...col.movies, fallbackMovie] } : col));
-            showToast('Eklendi (Detaylar daha sonra yüklenecek)', 'info');
+            // Keep this silent as well unless strictly necessary, falling back to optimistic UI.
         }
     }
   }, [activeCollectionId, collections, showToast]);
