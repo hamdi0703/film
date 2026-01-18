@@ -19,7 +19,12 @@ interface SharedListViewProps {
 type TabOption = 'movie' | 'tv';
 
 const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, onBack }) => {
-  const { sharedList } = useCollectionContext();
+  const { 
+      sharedList, 
+      checkIsSelected, // Global context'ten gelir (Kullanıcının kendi yerel listesini kontrol eder)
+      toggleMovieInCollection // Global context'ten gelir (Kullanıcının kendi yerel listesine ekler)
+  } = useCollectionContext();
+  
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme(); 
   
@@ -204,6 +209,10 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                         <MovieCard 
                             key={movie.id}
                             movie={movie} 
+                            // BUG FIX: checkIsSelected kullanıcının KENDİ (yerel) listesini kontrol eder.
+                            // Bu sayede paylaşılan bir listede gezerken, "Bu film benim arşivimde var mı?" sorusunu cevaplar.
+                            isSelected={checkIsSelected(movie.id)}
+                            onToggleSelect={toggleMovieInCollection}
                             onClick={onSelectMovie} 
                             allGenres={genres}
                             mediaType={activeTab}

@@ -17,7 +17,7 @@ add column if not exists description text;
 create index if not exists idx_user_collections_token on public.user_collections(share_token);
 
 -- 2. RLS POLİTİKALARINI GÜNCELLEME
--- Önceki politikaları temizle (User Select Own kalacak, Public Read ekleyeceğiz)
+-- Önceki politikaları temizle (Çakışmayı önlemek için)
 drop policy if exists "Public Shared Read" on public.shared_lists;
 drop policy if exists "Public Read Collections" on public.user_collections;
 drop policy if exists "Users can select own collections" on public.user_collections;
@@ -29,7 +29,7 @@ create policy "Users can select own collections"
 on public.user_collections for select 
 using (auth.uid() = user_id);
 
--- B. Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir
+-- B. Herhangi biri, eğer koleksiyon PUBLIC ise okuyabilir (Token ile erişim için)
 create policy "Public Read Collections" 
 on public.user_collections for select 
 using (is_public = true);

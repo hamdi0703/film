@@ -84,7 +84,7 @@ export interface Collection {
   topFavoriteMovies?: (number | null)[]; // 5 slots
   topFavoriteShows?: (number | null)[];  // 5 slots
   owner?: string; // Username of the sharer
-  ownerId?: string; // ID of the sharer (for edit permission)
+  ownerId?: string; // ID of the sharer (for edit permission logic)
 }
 
 export type SortOption = 'popularity.desc' | 'vote_average.desc' | 'primary_release_date.desc' | 'revenue.desc';

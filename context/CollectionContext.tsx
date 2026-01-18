@@ -58,6 +58,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // State
   const [collections, setCollections] = useState<Collection[]>([DEFAULT_COLLECTION]);
   const [activeCollectionId, setActiveCollectionId] = useState<string>('default');
+  
+  // Shared List State (Görüntülenen harici liste)
   const [sharedList, setSharedList] = useState<Collection | null>(null);
 
   const isHydrating = useRef(false); 
@@ -94,10 +96,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         movies: d.movies || [],
                         topFavoriteMovies: d.top_favorite_movies || [null, null, null, null, null],
                         topFavoriteShows: d.top_favorite_shows || [null, null, null, null, null],
-                        ownerId: d.user_id
+                        ownerId: d.user_id // ÖNEMLİ: Sahibi tanımak için
                     }));
                     setCollections(mapped);
-                    // Eğer aktif ID listede yoksa ilkini seç
                     if (!mapped.find(c => c.id === activeCollectionId)) {
                         setActiveCollectionId(mapped[0].id);
                     }
@@ -163,13 +164,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // --- 3. SHARED LIST LOADING (Live & Legacy) ---
   
-  // NEW: Live Collection Loading
+  // NEW: Live Collection Loading via Token
   const loadCollectionByToken = useCallback(async (token: string): Promise<boolean> => {
       setSharedList(null);
       try {
-          // GÜNCELLEME: is_public filtresini kaldırdık. 
-          // RLS (Database Policy) zaten izinsiz erişimi engeller.
-          // Ancak SAHİBİ erişmek isterse görebilmeli.
+          // 1. Önce token'a göre veriyi çekmeyi dene.
+          // RLS (is_public=true OR owner) burada devreye girer.
           const { data, error } = await supabase
             .from('user_collections')
             .select('*')
@@ -178,11 +178,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             
           if (error || !data) return false;
 
-          // Ek Güvenlik Kontrolü (Client-side)
-          // Eğer liste public DEĞİLSE ve giren kişi sahibi DEĞİLSE, gösterme.
+          // 2. Client-Side Güvenlik Katmanı:
+          // Eğer liste gizliyse (is_public=false) ve bakan kişi sahibi DEĞİLSE, gösterme.
           const currentUserId = (await supabase.auth.getUser()).data.user?.id;
-          if (!data.is_public && data.user_id !== currentUserId) {
-              return false; 
+          const isOwner = currentUserId === data.user_id;
+
+          if (!data.is_public && !isOwner) {
+              return false; // Erişim engellendi
           }
 
           // Owner username fetch
@@ -203,7 +205,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               topFavoriteMovies: data.top_favorite_movies,
               topFavoriteShows: data.top_favorite_shows,
               owner: ownerUsername,
-              ownerId: data.user_id
+              ownerId: data.user_id // ID'yi sakla ki UI'da 'edit' butonu gösterebilelim
           };
           setSharedList(shared);
           return true;
@@ -347,8 +349,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setCollections(prev => prev.map(col => col.id === activeCollectionId ? { ...col, movies: updatedMovies } : col));
   };
 
+  // CRITICAL FIX: Bu fonksiyon HER ZAMAN kullanıcının YEREL/AKTİF listesini değiştirir.
+  // Paylaşılan bir listede geziyor olsa bile, "Ekle" dediğinde KENDİ listesine eklemeli.
   const toggleMovieInCollection = useCallback(async (movie: Movie) => {
     const targetCol = collections.find(c => c.id === activeCollectionId);
+    
+    // Eğer yerel liste yoksa veya kullanıcı yoksa işlem yapma
     if (!targetCol) return;
 
     const exists = targetCol.movies.some(m => m.id === movie.id);
@@ -391,6 +397,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [activeCollectionId, collections, showToast]);
 
+  // CRITICAL FIX: Bu fonksiyon da HER ZAMAN kullanıcının YEREL/AKTİF listesini kontrol etmeli.
   const checkIsSelected = useCallback((id: number) => {
       const activeCollection = collections.find(c => c.id === activeCollectionId);
       return activeCollection ? activeCollection.movies.some(m => m.id === id) : false;
