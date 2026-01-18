@@ -47,43 +47,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
   
-  // Fetch extra profile fields from 'public.profiles'
+  // Güvenli Profil Çekme Fonksiyonu
   const fetchUserProfile = async (authUser: any) => {
-      // Skip for mock users
+      // Mock kullanıcı ise direkt dön
       if (authUser.id.startsWith('mock-')) return authUser;
 
       try {
           const { data, error } = await supabase
             .from('profiles')
-            .select('is_blocked, is_admin')
+            .select('is_blocked, is_admin, username, avatar_url')
             .eq('id', authUser.id)
-            .maybeSingle();
+            .maybeSingle(); // single() yerine maybeSingle() hata fırlatmaz, null döner
           
           if (error) {
-            console.error("Profile fetch warning:", error);
-            // Even if profile fetch fails, return the authUser so they can log in (just without admin rights yet)
+            console.warn("Profil verisi çekilemedi (RLS veya bağlantı hatası):", error.message);
+            // Hata olsa bile giriş yapmasına izin ver, sadece admin yetkisi olmaz.
             return authUser;
           }
 
           if (data) {
-              // Security Block Check
+              // Bloklanmış kullanıcı kontrolü
               if (data.is_blocked) {
                   await supabase.auth.signOut();
                   setUser(null);
                   throw new Error('Hesabınız erişime kapatılmıştır.');
               }
               
-              // Merge Auth User + Profile Data
+              // Auth User ile Profil Verisini Birleştir
+              // Profil tablosundaki username/avatar önceliklidir
               return {
                   ...authUser,
+                  user_metadata: {
+                      ...authUser.user_metadata,
+                      username: data.username || authUser.user_metadata?.username,
+                      avatar_url: data.avatar_url || authUser.user_metadata?.avatar_url,
+                  },
                   is_blocked: data.is_blocked,
                   is_admin: data.is_admin
               };
           }
       } catch (e: any) {
           if (e.message === 'Hesabınız erişime kapatılmıştır.') throw e;
-          console.error("Profile fetch error:", e);
+          console.error("Kritik Profil Hatası:", e);
       }
+      
+      // Profil yoksa bile standart kullanıcı olarak devam et
       return authUser;
   };
 
@@ -91,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
 
     const initializeAuth = async () => {
-      // 1. Check Mock User
+      // 1. Mock Kullanıcı Kontrolü
       const mock = localStorage.getItem('tria_mock_user');
       if (mock) {
           if(mounted) {
@@ -101,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
       }
 
-      // 2. Check Supabase Session
+      // 2. Supabase Oturumu Kontrolü
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -122,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // 3. Listen for Auth Changes
+    // 3. Auth Listener (Oturum Değişikliklerini Dinle)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
         if (localStorage.getItem('tria_mock_user')) return;
@@ -132,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const enrichedUser = await fetchUserProfile(session.user);
                 setUser(enrichedUser);
             } catch (error) {
-                // If blocked, fetchUserProfile throws, so we ensure user is null
+                // Bloklanmışsa kullanıcıyı null yap
                 setUser(null);
             }
         } else {
@@ -148,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, pass: string) => {
-    // Mock Admin Login (Backdoor)
+    // Mock Admin Login (Geliştirme Amaçlı)
     if (email === 'admin' && pass === 'admin') {
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
       setUser(MOCK_ADMIN_USER);
@@ -156,11 +164,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    // Real Supabase Login
+    // Gerçek Supabase Girişi
     localStorage.removeItem('tria_mock_user');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     
-    if (error) throw error;
+    if (error) {
+      console.error("Giriş Hatası:", error);
+      throw error;
+    }
     
     if (data.user) {
       const enrichedUser = await fetchUserProfile(data.user);
@@ -175,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email, password: pass, options: { data: { username } }
     });
     if (error) throw error;
-    showToast('Kayıt başarılı!', 'success');
+    showToast('Kayıt başarılı! Giriş yapabilirsiniz.', 'success');
   };
 
   const signOut = async () => {
@@ -202,13 +213,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
     }
 
+    // 1. Auth Metadata Güncelle
     const { error } = await supabase.auth.updateUser({
       data: { username, avatar_url: avatarUrl }
     });
     if (error) throw error;
 
-    // Sync with profiles table
-    await supabase.from('profiles').update({ username, avatar_url: avatarUrl }).eq('id', user.id);
+    // 2. Profiles Tablosunu Güncelle
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ username, avatar_url: avatarUrl })
+        .eq('id', user.id);
+    
+    if (profileError) {
+        console.error("Profil tablosu güncellenemedi:", profileError);
+        // Kritik hata değil, devam et
+    }
 
     setUser(prev => prev ? ({
         ...prev,
@@ -229,8 +249,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     try {
         if (!user.id.startsWith('mock-')) {
-            // This RPC needs to be created in Supabase or handle via client delete if policies allow
-            // For now, simple signOut as fallback if RPC doesn't exist
+             // Supabase Client tarafında kullanıcı silme yetkisi genelde kapalıdır.
+             // Bu yüzden sadece çıkış yapıyoruz. Gerçek silme için Edge Function gerekir.
              await supabase.auth.signOut();
         }
         await signOut();

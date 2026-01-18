@@ -1,96 +1,115 @@
 
 -- ============================================================
--- TRIA APP - TAMİR, GÜVENLİK VE ADMIN KURULUMU
+-- TRIA APP - TAMİR VE GÜVENLİK KİTİ (GİRİŞ SORUNU ÇÖZÜMÜ)
 -- ============================================================
 
--- 1. PROFILES TABLOSUNU OLUŞTUR / GÜNCELLE
-create table if not exists public.profiles (
-  id uuid references auth.users on delete cascade primary key,
-  username text,
-  avatar_url text,
-  is_blocked boolean default false,
-  is_admin boolean default false,
-  updated_at timestamp with time zone default now()
-);
+-- 1. E-POSTA ONAY SORUNUNU ÇÖZ (400 Bad Request Hatası İçin)
+-- Kayıt olmuş ama e-postası onaylanmamış gibi görünen herkesi onaylı yap.
+UPDATE auth.users
+SET email_confirmed_at = now()
+WHERE email_confirmed_at IS NULL;
 
--- Eksik kolonları ekle (Hata almamak için)
+-- 2. PROFILES TABLOSUNU GARANTİYE AL
+-- Tablo zaten var (schema'da gördüm), eksik sütun veya politika varsa düzeltelim.
+
+-- Admin sütunu yoksa ekle
 do $$
 begin
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'is_admin') then
         alter table public.profiles add column is_admin boolean default false;
     end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'username') then
-        alter table public.profiles add column username text;
-    end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'is_blocked') then
-        alter table public.profiles add column is_blocked boolean default false;
-    end if;
 end $$;
 
--- 2. RLS (GÜVENLİK) POLİTİKALARI
-alter table public.profiles enable row level security;
-
--- Eski politikaları temizle
-drop policy if exists "Public profiles are viewable by everyone" on public.profiles;
-drop policy if exists "Users can insert their own profile" on public.profiles;
-drop policy if exists "Users can update own profile" on public.profiles;
-
--- Yeni politikalar
-create policy "Public profiles are viewable by everyone" 
-on public.profiles for select using (true);
-
-create policy "Users can update own profile" 
-on public.profiles for update using (auth.uid() = id);
-
-create policy "Users can insert own profile" 
-on public.profiles for insert with check (auth.uid() = id);
-
--- 3. KRİTİK DÜZELTME: KULLANICILARI ONAR (Giriş Sorunu Çözümü)
-
--- A. E-postaları Otomatik Onayla (Bad Request 400 Çözümü)
--- NOT: Supabase ayarlarından "Enable Email Confirmations" kapalı değilse bu gereklidir.
-UPDATE auth.users
-SET email_confirmed_at = now()
-WHERE email_confirmed_at IS NULL;
-
--- B. Eksik Profilleri Oluştur (Profil Gelmeme Sorunu Çözümü)
-INSERT INTO public.profiles (id, username, is_admin, is_blocked)
+-- 3. EKSİK PROFİLLERİ OLUŞTUR (Backfill)
+-- auth.users'da olup profiles tablosunda olmayanları ekle.
+INSERT INTO public.profiles (id, username, email, is_admin, is_blocked, updated_at)
 SELECT 
     id, 
-    COALESCE(raw_user_meta_data->>'username', email), 
+    COALESCE(raw_user_meta_data->>'username', substring(email from '^[^@]+')), -- Username yoksa emailin başını al
+    email,
     false, 
-    false
+    false,
+    now()
 FROM auth.users
 WHERE id NOT IN (SELECT id FROM public.profiles);
 
--- 4. TRIGGER (Yeni Kayıtlar İçin Otomatik Profil)
-create or replace function public.handle_new_user() 
-returns trigger as $$
-begin
-  insert into public.profiles (id, username, avatar_url, is_admin, is_blocked)
-  values (
+-- 4. TRIGGER: YENİ KULLANICILAR İÇİN OTOMATİK PROFİL
+-- Bu fonksiyon her yeni kayıtta çalışır ve profili oluşturur.
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email, avatar_url, is_admin, is_blocked)
+  VALUES (
     new.id, 
-    new.raw_user_meta_data->>'username', 
+    COALESCE(new.raw_user_meta_data->>'username', 'Kullanıcı'),
+    new.email,
     new.raw_user_meta_data->>'avatar_url', 
     false, 
     false
-  );
-  return new;
-end;
-$$ language plpgsql security definer;
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+-- Trigger'ı yeniden bağla (Eskisini silip temiz kurulum yapıyoruz)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- ============================================================
--- ÖNEMLİ: KENDİNİ ADMIN YAPMA KOMUTU
--- Aşağıdaki satırın başındaki '--' işaretini kaldır ve
--- 'senin_mail_adresin@gmail.com' kısmına kendi emailini yaz.
--- Sonra RUN butonuna bas.
--- ============================================================
+-- 5. RLS (GÜVENLİK) POLİTİKALARI
+-- Mevcut politikaları temizleyip en güvenli hallerini yazıyoruz.
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- UPDATE public.profiles SET is_admin = true 
--- WHERE id IN (SELECT id FROM auth.users WHERE email = 'senin_mail_adresin@gmail.com');
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 
+-- Okuma: Herkes profilleri görebilir (Admin kontrolü ve sosyal özellikler için)
+CREATE POLICY "Public profiles are viewable by everyone" 
+ON public.profiles FOR SELECT 
+USING (true);
+
+-- Güncelleme: Sadece kendi profilini güncelleyebilir
+CREATE POLICY "Users can update own profile" 
+ON public.profiles FOR UPDATE 
+USING (auth.uid() = id);
+
+-- Ekleme: Trigger çalışmazsa diye manuel ekleme izni (Sadece kendi ID'si için)
+CREATE POLICY "Users can insert own profile" 
+ON public.profiles FOR INSERT 
+WITH CHECK (auth.uid() = id);
+
+-- 6. REVIEWS VE COLLECTIONS İÇİN RLS TEMİZLİĞİ
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_collections ENABLE ROW LEVEL SECURITY;
+
+-- Reviews: Herkes okuyabilir, sadece sahibi yazabilir/silebilir
+DROP POLICY IF EXISTS "Public Read Reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Users can insert own reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Users can update own reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Users can delete own reviews" ON public.reviews;
+
+CREATE POLICY "Public Read Reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Users can insert own reviews" ON public.reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own reviews" ON public.reviews FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own reviews" ON public.reviews FOR DELETE USING (auth.uid() = user_id);
+
+-- Collections: Public olanları herkes görür, gizlileri sadece sahibi
+DROP POLICY IF EXISTS "Read Collections" ON public.user_collections;
+DROP POLICY IF EXISTS "Insert Collections" ON public.user_collections;
+DROP POLICY IF EXISTS "Update Collections" ON public.user_collections;
+DROP POLICY IF EXISTS "Delete Collections" ON public.user_collections;
+
+CREATE POLICY "Read Collections" ON public.user_collections FOR SELECT 
+USING (is_public = true OR auth.uid() = user_id);
+
+CREATE POLICY "Insert Collections" ON public.user_collections FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Update Collections" ON public.user_collections FOR UPDATE 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Delete Collections" ON public.user_collections FOR DELETE 
+USING (auth.uid() = user_id);
