@@ -19,6 +19,7 @@ const MovieDetailView = lazy(() => import('./components/MovieDetailView'));
 const ExploreView = lazy(() => import('./components/views/ExploreView'));
 const DashboardView = lazy(() => import('./components/views/DashboardView'));
 const SharedListView = lazy(() => import('./components/views/SharedListView'));
+const AdminView = lazy(() => import('./components/views/AdminView')); // Added AdminView
 
 const ViewLoader = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -27,9 +28,8 @@ const ViewLoader = () => (
 );
 
 const AppContent: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'explore' | 'dashboard' | 'shared'>(() => {
+  const [viewMode, setViewMode] = useState<'explore' | 'dashboard' | 'shared' | 'admin'>(() => {
       const params = new URLSearchParams(window.location.search);
-      // New: collection param (token) | Old: list (id), ids (manual)
       const hasShareLink = params.get('collection') || params.get('list') || params.get('ids');
       return hasShareLink ? 'shared' : 'explore';
   });
@@ -80,7 +80,6 @@ const AppContent: React.FC = () => {
                     setViewMode('shared');
                 } else {
                     showToast('Liste bulunamadı veya gizli.', 'error');
-                    // URL temizle
                     const url = new URL(window.location.href);
                     url.searchParams.delete('collection');
                     window.history.replaceState({}, '', url.pathname);
@@ -189,6 +188,8 @@ const AppContent: React.FC = () => {
       if (isSharedLoading) return <ViewLoader />;
       
       switch (viewMode) {
+          case 'admin':
+              return <AdminView />;
           case 'dashboard':
               return <DashboardView onSelectMovie={handleMovieSelect} genres={genres} />;
           case 'shared':
@@ -198,6 +199,9 @@ const AppContent: React.FC = () => {
               return <ExploreView searchQuery={searchQuery} genres={genres} onSelectMovie={handleMovieSelect} />;
       }
   };
+
+  // Safe cast for Header prop since admin mode is internal
+  const headerViewMode = (viewMode === 'shared' ? 'explore' : viewMode) as 'explore' | 'dashboard' | 'admin';
 
   return (
     <div className="min-h-screen flex flex-col font-sans pb-16 md:pb-0">
@@ -219,7 +223,7 @@ const AppContent: React.FC = () => {
             isSearchVisible={isSearchVisible}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            viewMode={viewMode === 'dashboard' ? 'dashboard' : 'explore'}
+            viewMode={headerViewMode}
             setViewMode={(mode) => {
                 setViewMode(mode);
                 if(mode === 'dashboard' && searchQuery) setSearchQuery('');
@@ -239,7 +243,7 @@ const AppContent: React.FC = () => {
 
       {viewMode !== 'shared' && !isSharedLoading && (
           <BottomNav 
-            viewMode={viewMode === 'dashboard' ? 'dashboard' : 'explore'}
+            viewMode={headerViewMode}
             setViewMode={(mode) => setViewMode(mode)}
             listCount={0}
           />

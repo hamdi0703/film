@@ -1,16 +1,20 @@
+
 import React from 'react';
-import { Collection } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface BottomNavProps {
-  viewMode: 'explore' | 'dashboard';
-  setViewMode: (mode: 'explore' | 'dashboard') => void;
+  viewMode: 'explore' | 'dashboard' | 'admin';
+  setViewMode: (mode: 'explore' | 'dashboard' | 'admin') => void;
   listCount: number;
 }
 
 const BottomNav: React.FC<BottomNavProps> = ({ viewMode, setViewMode, listCount }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.is_admin;
+
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-lg border-t border-neutral-200 dark:border-neutral-800 z-50 pb-safe">
-      <div className="flex justify-around items-center h-16">
+      <div className={`flex justify-around items-center h-16 ${isAdmin ? 'px-2' : ''}`}>
         
         <button 
           onClick={() => setViewMode('explore')}
@@ -46,6 +50,22 @@ const BottomNav: React.FC<BottomNavProps> = ({ viewMode, setViewMode, listCount 
           </div>
           <span className="text-[10px] font-medium">Koleksiyon</span>
         </button>
+
+        {isAdmin && (
+            <button 
+                onClick={() => setViewMode('admin')}
+                className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
+                    viewMode === 'admin' 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-300'
+                }`}
+            >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={viewMode === 'admin' ? 2.5 : 2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span className="text-[10px] font-medium">Admin</span>
+            </button>
+        )}
 
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,8 +10,8 @@ interface HeaderProps {
   isSearchVisible: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  viewMode: 'explore' | 'dashboard';
-  setViewMode: (mode: 'explore' | 'dashboard') => void;
+  viewMode: 'explore' | 'dashboard' | 'admin'; // Added 'admin'
+  setViewMode: (mode: 'explore' | 'dashboard' | 'admin') => void;
   listCount: number;
   onOpenProfile: () => void;
 }
@@ -26,12 +27,10 @@ const Header: React.FC<HeaderProps> = ({
   onOpenProfile
 }) => {
   const { theme, toggleTheme } = useTheme();
-  // NOW USING GLOBAL STATE FROM CONTEXT
   const { user, isAuthModalOpen, openAuthModal, closeAuthModal } = useAuth();
   
   const avatarId = user?.user_metadata?.avatar_url;
   const resolvedAvatarUrl = getAvatarUrl(avatarId);
-  // Get persona for gradient styling
   const persona = getAvatarPersona(avatarId);
 
   return (
@@ -86,54 +85,71 @@ const Header: React.FC<HeaderProps> = ({
                           </span>
                       )}
                   </button>
+                  
+                  {/* ADMIN BUTTON (Desktop) */}
+                  {user?.is_admin && (
+                      <button
+                          onClick={() => setViewMode('admin')}
+                          className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                              viewMode === 'admin' 
+                              ? 'bg-red-500 text-white shadow-sm shadow-red-500/30' 
+                              : 'text-neutral-500 hover:text-red-500'
+                          }`}
+                      >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                          Admin
+                      </button>
+                  )}
               </nav>
           </div>
 
-          {/* Search Bar - Centered & Wide */}
+          {/* Search Bar */}
           <div className="flex-1 max-w-xl mx-auto relative group hidden sm:block">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-neutral-400 group-focus-within:text-indigo-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-            </div>
-            <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Film, dizi veya kişi ara..."
-                aria-label="İçerik Ara"
-                className="block w-full pl-10 pr-10 py-2.5 border-none rounded-xl leading-5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner sm:text-sm"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => onSearchChange('')}
-                  aria-label="Aramayı Temizle"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-white"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
+             {viewMode !== 'admin' && (
+                <>
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-neutral-400 group-focus-within:text-indigo-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => onSearchChange(e.target.value)}
+                        placeholder="Film, dizi veya kişi ara..."
+                        className="block w-full pl-10 pr-10 py-2.5 border-none rounded-xl leading-5 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner sm:text-sm"
+                    />
+                    {searchQuery && (
+                        <button 
+                        onClick={() => onSearchChange('')}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-white"
+                        >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        </button>
+                    )}
+                </>
+             )}
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
 
             {/* Mobile Search Toggle */}
-            <button 
-              className="sm:hidden p-2 text-neutral-900 dark:text-white"
-              onClick={onSearchToggle}
-              aria-label="Aramayı Aç/Kapat"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
+            {viewMode !== 'admin' && (
+                <button 
+                className="sm:hidden p-2 text-neutral-900 dark:text-white"
+                onClick={onSearchToggle}
+                >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                </button>
+            )}
 
             <button 
               onClick={toggleTheme}
-              aria-label={theme === 'dark' ? 'Aydınlık Moda Geç' : 'Karanlık Moda Geç'}
               className="p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-900 dark:text-white"
             >
               {theme === 'dark' ? (
@@ -151,7 +167,6 @@ const Header: React.FC<HeaderProps> = ({
             {user ? (
                <button 
                   onClick={onOpenProfile}
-                  aria-label="Profil Menüsünü Aç"
                   style={{ background: `linear-gradient(135deg, ${persona.bgStart}, ${persona.bgEnd})` }}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md hover:ring-2 hover:ring-offset-2 hover:ring-indigo-500 transition-all border border-white/20 overflow-hidden"
                 >
@@ -169,14 +184,13 @@ const Header: React.FC<HeaderProps> = ({
         </div>
         
         {/* Mobile Search Expanded View */}
-        <div className={`sm:hidden overflow-hidden transition-all duration-300 ${isSearchVisible ? 'h-16 border-t border-neutral-200 dark:border-neutral-800' : 'h-0'}`}>
+        <div className={`sm:hidden overflow-hidden transition-all duration-300 ${isSearchVisible && viewMode !== 'admin' ? 'h-16 border-t border-neutral-200 dark:border-neutral-800' : 'h-0'}`}>
           <div className="px-4 h-full flex items-center">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder="Ne izlemek istiyorsun?"
-                aria-label="Mobilde İçerik Ara"
                 className="w-full bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white px-4 py-2 rounded-xl text-sm outline-none"
                 autoFocus={isSearchVisible}
               />

@@ -4,10 +4,9 @@ import { useCollectionContext } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { AVATAR_PERSONAS, getAvatarUrl, getAvatarPersona } from '../utils/avatarUtils';
-import { AdminService, AdminStats } from '../services/adminService';
 
-// YENİ: ADMIN Tab eklendi
-export type ProfileTab = 'PROFILE' | 'SECURITY' | 'STATS' | 'ADMIN';
+// MODIFIED: Admin removed from here
+export type ProfileTab = 'PROFILE' | 'SECURITY' | 'STATS';
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -23,10 +22,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const [loading, setLoading] = useState(false);
 
-  // Admin Stats State
-  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
-  const [adminLoading, setAdminLoading] = useState(false);
-
   // Form States
   const [username, setUsername] = useState('');
   const [selectedAvatarId, setSelectedAvatarId] = useState<string>('1'); 
@@ -41,24 +36,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
         setSelectedAvatarId(currentAvatar && !currentAvatar.startsWith('http') ? currentAvatar : '1');
     }
   }, [user]);
-
-  // Fetch Admin Stats when tab is active
-  useEffect(() => {
-      if (activeTab === 'ADMIN' && user?.is_admin) {
-          const fetchStats = async () => {
-              setAdminLoading(true);
-              try {
-                  const data = await AdminService.getStats();
-                  setAdminStats(data);
-              } catch (e: any) {
-                  showToast('Veriler alınamadı: ' + e.message, 'error');
-              } finally {
-                  setAdminLoading(false);
-              }
-          };
-          fetchStats();
-      }
-  }, [activeTab, user, showToast]);
 
   // Date Formatting for Join Date
   const joinDate = useMemo(() => {
@@ -158,7 +135,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
 
         {/* User Quick Info */}
         <div className="px-6 pt-6 pb-2 text-center">
-            {/* Dynamic Background based on Persona */}
             <div 
                 className="w-24 h-24 mx-auto rounded-full flex items-center justify-center shadow-xl mb-3 overflow-hidden border-4 border-white dark:border-neutral-800 relative transition-all duration-500"
                 style={{ background: `linear-gradient(135deg, ${currentPersona.bgStart}, ${currentPersona.bgEnd})` }}
@@ -172,12 +148,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
             
             <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{username || user?.email}</h3>
             
-            {/* User Email */}
             <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
                 {user?.email}
             </p>
 
-            {/* Join Date */}
             {joinDate && (
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 mb-3 opacity-80">
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,9 +171,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
             {renderTabButton('PROFILE', 'Profil', <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>)}
             {renderTabButton('SECURITY', 'Güvenlik', <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>)}
             {renderTabButton('STATS', 'İstatistik', <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>)}
-            
-            {/* Sadece Admin Kullanıcılar Görebilir */}
-            {user?.is_admin && renderTabButton('ADMIN', 'Yönetim', <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>)}
         </div>
 
         {/* Tab Content */}
@@ -333,58 +304,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
                         <p className="text-[10px] text-neutral-400 mt-2">
                             Bu işlem sadece tarayıcınızdaki geçici verileri temizler. Hesabınızdaki veriler silinmez.
                         </p>
-                    </div>
-                </div>
-            )}
-
-            {/* --- ADMIN TAB (Sadece Adminler) --- */}
-            {activeTab === 'ADMIN' && user?.is_admin && (
-                <div className="space-y-6 animate-fade-in">
-                    <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
-                        <h3 className="font-bold text-indigo-900 dark:text-indigo-200 text-sm mb-1">Yönetici Paneli</h3>
-                        <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                            Bu veriler güvenli RPC bağlantısı ile çekilmektedir.
-                        </p>
-                    </div>
-
-                    {adminLoading ? (
-                        <div className="flex justify-center py-8">
-                            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                    ) : adminStats ? (
-                        <div className="grid grid-cols-1 gap-4">
-                            {/* Stats Grid */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 text-center shadow-sm">
-                                    <div className="text-2xl font-black text-neutral-900 dark:text-white">{adminStats.total_users}</div>
-                                    <div className="text-xs text-neutral-500 uppercase tracking-wider font-bold mt-1">Kullanıcı</div>
-                                </div>
-                                <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 text-center shadow-sm">
-                                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{adminStats.total_lists}</div>
-                                    <div className="text-xs text-neutral-500 uppercase tracking-wider font-bold mt-1">Liste</div>
-                                </div>
-                            </div>
-                            
-                            <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-between shadow-sm">
-                                <div className="flex flex-col">
-                                    <span className="text-2xl font-black text-neutral-900 dark:text-white">{adminStats.total_reviews}</span>
-                                    <span className="text-xs text-neutral-500 uppercase tracking-wider font-bold">İnceleme</span>
-                                </div>
-                                <div className="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center text-yellow-600">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="text-center py-6 text-neutral-500">
-                            Veri bulunamadı veya yetkiniz yok.
-                        </div>
-                    )}
-
-                    <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                        <button disabled className="w-full py-3 bg-neutral-100 dark:bg-neutral-800 text-neutral-400 rounded-xl font-bold text-xs cursor-not-allowed">
-                            Kullanıcı Yönetimi (Yakında)
-                        </button>
                     </div>
                 </div>
             )}

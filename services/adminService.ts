@@ -1,26 +1,33 @@
 
 import { supabase } from './supabaseClient';
 
-export interface AdminStats {
+export interface ChartPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminDashboardData {
   total_users: number;
   total_lists: number;
   total_reviews: number;
+  new_users_monthly: number;
+  new_lists_monthly: number;
+  chart_data: ChartPoint[];
 }
 
 export const AdminService = {
   /**
-   * Admin istatistiklerini güvenli RPC üzerinden çeker.
-   * RLS politikaları yüzünden standart 'count' sorguları çalışmaz.
+   * Admin dashboard verilerini çeker.
+   * Güvenli RPC (get_admin_dashboard_data) kullanır.
    */
-  async getStats(): Promise<AdminStats | null> {
-    const { data, error } = await supabase.rpc('get_admin_stats');
+  async getDashboardData(): Promise<AdminDashboardData | null> {
+    const { data, error } = await supabase.rpc('get_admin_dashboard_data');
 
     if (error) {
-      console.error('Admin Stats Error:', error);
+      console.error('Admin Dashboard Error:', error);
       throw new Error(error.message);
     }
 
-    // Gelen veri JSON olduğu için tip dönüşümü gerekebilir
-    return data as AdminStats;
+    return data as AdminDashboardData;
   }
 };
