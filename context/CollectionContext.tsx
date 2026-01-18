@@ -168,7 +168,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                       .from('profiles')
                       .select('username')
                       .eq('id', listData.user_id)
-                      .maybeSingle(); // single() yerine maybeSingle() kullanarak 406 hatasını önle
+                      .maybeSingle(); 
                   
                   if (profileData && profileData.username) {
                       ownerUsername = profileData.username;
@@ -227,18 +227,50 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!collection) return null;
 
       const shareId = generateUniqueShareId();
+      const tmdb = new TmdbService();
 
-      const optimizedMovies = collection.movies.map(movie => {
+      // --- CRITICAL UPDATE: ENRICH DATA BEFORE SHARING ---
+      // Eğer filmler arama sayfasından eklenmişse 'credits' bilgisi eksiktir.
+      // Paylaşmadan önce eksik verileri tamamlıyoruz (Hydration).
+      
+      const enrichedMovies = await Promise.all(collection.movies.map(async (movie) => {
+          // Eğer zaten credits ve cast verisi varsa olduğu gibi kullan
+          if (movie.credits && movie.credits.cast && movie.credits.cast.length > 0) {
+              return movie;
+          }
+
+          // Veri eksikse API'den çek
+          try {
+             // TV mi Film mi olduğunu anlamaya çalış
+             const isTv = !!(movie.name || movie.first_air_date);
+             const type = isTv ? 'tv' : 'movie';
+             
+             // Detay isteği at
+             const fullDetails = await tmdb.getMovieDetail(movie.id, type);
+             
+             // Mevcut objeyi, yeni gelen detaylarla birleştir (credits, created_by vs. gelir)
+             return { ...movie, ...fullDetails };
+          } catch (e) {
+              // Hata olursa eski haliyle devam et (Listeyi patlatma)
+              console.warn(`Could not enrich movie ${movie.id}`, e);
+              return movie;
+          }
+      }));
+
+      // Veriyi Paylaşım İçin Optimize Et
+      const optimizedMovies = enrichedMovies.map(movie => {
           let credits = undefined;
           if (movie.credits) {
               credits = {
-                  cast: (movie.credits.cast || []).slice(0, 12).map(c => ({
+                  // Sadece ilk 12 oyuncuyu al (Payload küçültmek için)
+                  cast: (movie.credits.cast || []).slice(0, 15).map(c => ({
                       id: c.id, 
                       name: c.name, 
                       character: c.character, 
                       profile_path: c.profile_path,
                       order: c.order
                   })),
+                  // Yönetmenleri al
                   crew: (movie.credits.crew || []).filter(p => p.job === 'Director').map(c => ({
                       id: c.id,
                       name: c.name,
@@ -260,7 +292,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               first_air_date: movie.first_air_date,
               genre_ids: movie.genre_ids,
               genres: movie.genres,
-              overview: movie.overview ? movie.overview.substring(0, 150) + (movie.overview.length > 150 ? '...' : '') : undefined,
+              overview: movie.overview ? movie.overview.substring(0, 200) + '...' : undefined, // Özet kısalt
               runtime: movie.runtime,
               episode_run_time: movie.episode_run_time,
               number_of_seasons: movie.number_of_seasons,
@@ -269,7 +301,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               created_by: movie.created_by,
               production_countries: movie.production_countries,
               addedAt: movie.addedAt,
-              credits: credits 
+              credits: credits // Artık dolu!
           }; 
       });
 
