@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useCollectionContext } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { AVATAR_PERSONAS, getAvatarUrl, getAvatarPersona } from '../utils/avatarUtils';
+import { AdminService, AdminStats } from '../services/adminService';
 
 // YENİ: ADMIN Tab eklendi
 export type ProfileTab = 'PROFILE' | 'SECURITY' | 'STATS' | 'ADMIN';
@@ -21,6 +23,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const [loading, setLoading] = useState(false);
 
+  // Admin Stats State
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+
   // Form States
   const [username, setUsername] = useState('');
   const [selectedAvatarId, setSelectedAvatarId] = useState<string>('1'); 
@@ -35,6 +41,24 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
         setSelectedAvatarId(currentAvatar && !currentAvatar.startsWith('http') ? currentAvatar : '1');
     }
   }, [user]);
+
+  // Fetch Admin Stats when tab is active
+  useEffect(() => {
+      if (activeTab === 'ADMIN' && user?.is_admin) {
+          const fetchStats = async () => {
+              setAdminLoading(true);
+              try {
+                  const data = await AdminService.getStats();
+                  setAdminStats(data);
+              } catch (e: any) {
+                  showToast('Veriler alınamadı: ' + e.message, 'error');
+              } finally {
+                  setAdminLoading(false);
+              }
+          };
+          fetchStats();
+      }
+  }, [activeTab, user, showToast]);
 
   // Date Formatting for Join Date
   const joinDate = useMemo(() => {
@@ -125,7 +149,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
         <div className="p-6 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between bg-white dark:bg-neutral-950 z-10">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                 Ayarlar
-                {user?.is_admin && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">Admin</span>}
+                {user?.is_admin && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider shadow-lg shadow-red-500/30">Admin</span>}
             </h2>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <svg className="w-6 h-6 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -183,7 +207,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
             
             {/* --- PROFILE TAB --- */}
             {activeTab === 'PROFILE' && (
-                <form onSubmit={handleUpdateProfile} className="space-y-6">
+                <form onSubmit={handleUpdateProfile} className="space-y-6 animate-fade-in">
                     <div>
                         <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Kullanıcı Adı</label>
                         <input 
@@ -289,7 +313,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
 
             {/* --- STATS TAB --- */}
             {activeTab === 'STATS' && (
-                <div className="space-y-4">
+                <div className="space-y-4 animate-fade-in">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-neutral-50 dark:bg-neutral-900 p-5 rounded-2xl text-center border border-neutral-100 dark:border-neutral-800">
                             <div className="text-3xl font-bold text-neutral-900 dark:text-white">{collections.length}</div>
@@ -319,27 +343,49 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
                     <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
                         <h3 className="font-bold text-indigo-900 dark:text-indigo-200 text-sm mb-1">Yönetici Paneli</h3>
                         <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                            Bu alan sadece yetkili kullanıcılara açıktır. Topluluk yönetimi ve sistem ayarları buradan yapılır.
+                            Bu veriler güvenli RPC bağlantısı ile çekilmektedir.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <button className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col items-center justify-center gap-2 hover:border-indigo-500 transition-colors">
-                            <svg className="w-6 h-6 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                            <span className="text-xs font-bold">Kullanıcılar</span>
-                        </button>
-                        <button className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col items-center justify-center gap-2 hover:border-indigo-500 transition-colors">
-                            <svg className="w-6 h-6 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            <span className="text-xs font-bold">Raporlar</span>
+                    {adminLoading ? (
+                        <div className="flex justify-center py-8">
+                            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : adminStats ? (
+                        <div className="grid grid-cols-1 gap-4">
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 text-center shadow-sm">
+                                    <div className="text-2xl font-black text-neutral-900 dark:text-white">{adminStats.total_users}</div>
+                                    <div className="text-xs text-neutral-500 uppercase tracking-wider font-bold mt-1">Kullanıcı</div>
+                                </div>
+                                <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 text-center shadow-sm">
+                                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{adminStats.total_lists}</div>
+                                    <div className="text-xs text-neutral-500 uppercase tracking-wider font-bold mt-1">Liste</div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 flex items-center justify-between shadow-sm">
+                                <div className="flex flex-col">
+                                    <span className="text-2xl font-black text-neutral-900 dark:text-white">{adminStats.total_reviews}</span>
+                                    <span className="text-xs text-neutral-500 uppercase tracking-wider font-bold">İnceleme</span>
+                                </div>
+                                <div className="w-10 h-10 rounded-full bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center text-yellow-600">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-6 text-neutral-500">
+                            Veri bulunamadı veya yetkiniz yok.
+                        </div>
+                    )}
+
+                    <div className="border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                        <button disabled className="w-full py-3 bg-neutral-100 dark:bg-neutral-800 text-neutral-400 rounded-xl font-bold text-xs cursor-not-allowed">
+                            Kullanıcı Yönetimi (Yakında)
                         </button>
                     </div>
-                    
-                    <button 
-                        disabled 
-                        className="w-full py-3 bg-neutral-100 dark:bg-neutral-800 text-neutral-400 rounded-xl font-bold text-xs cursor-not-allowed"
-                    >
-                        Sistem Logları (Yakında)
-                    </button>
                 </div>
             )}
         </div>
