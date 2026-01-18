@@ -34,16 +34,6 @@ interface CollectionContextType {
 
 const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
 
-const DEFAULT_COLLECTION: Collection = { 
-    id: 'default', 
-    name: 'Favoriler',
-    description: 'Favori film ve dizilerim.',
-    isPublic: false,
-    movies: [], 
-    topFavoriteMovies: [null, null, null, null, null],
-    topFavoriteShows: [null, null, null, null, null]
-};
-
 const generateToken = (): string => {
     const array = new Uint8Array(12);
     window.crypto.getRandomValues(array);
@@ -54,9 +44,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { showToast } = useToast();
   const { user, loading: authLoading } = useAuth();
   
-  // State
-  const [collections, setCollections] = useState<Collection[]>([DEFAULT_COLLECTION]);
-  const [activeCollectionId, setActiveCollectionId] = useState<string>('default');
+  // State - Start EMPTY
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [activeCollectionId, setActiveCollectionId] = useState<string>('');
   const [sharedList, setSharedList] = useState<Collection | null>(null);
 
   // CRITICAL: Safety Guard
@@ -88,11 +78,18 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     const parsed = JSON.parse(saved);
                     if (Array.isArray(parsed) && parsed.length > 0) {
                         setCollections(parsed);
-                        setActiveCollectionId(parsed[0]?.id || 'default');
+                        setActiveCollectionId(parsed[0]?.id || '');
+                    } else {
+                        setCollections([]);
+                        setActiveCollectionId('');
                     }
                 } catch (e) { 
-                    setCollections([DEFAULT_COLLECTION]);
+                    setCollections([]);
+                    setActiveCollectionId('');
                 }
+            } else {
+                setCollections([]);
+                setActiveCollectionId('');
             }
             setIsInitialized(true); // Local load complete
             isHydrating.current = false;
@@ -103,7 +100,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         try {
             console.log("Fetching collections for user:", user.id);
             
-            // FIX: Replaced 'created_at' with 'updated_at' because 'created_at' column does not exist in DB
             const { data, error } = await supabase
                 .from('user_collections')
                 .select(`
@@ -138,11 +134,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 setCollections(mapped);
                 
                 // Eğer aktif koleksiyon silinenler arasındaysa, ilkini seç
-                if (!mapped.find(c => c.id === activeCollectionId)) {
+                if (!activeCollectionId || !mapped.find(c => c.id === activeCollectionId)) {
                     setActiveCollectionId(mapped[0].id);
                 }
             } else {
-                console.log("No collections found, using default.");
+                // No collections found - Clean slate
+                setCollections([]);
+                setActiveCollectionId('');
             }
             
             // BAŞARILI YÜKLEME SONRASI KİLİDİ AÇ
@@ -167,38 +165,36 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // 2. Veriler henüz DB'den çekilmediyse (isInitialized false) DUR.
       // 3. Mock user ise Supabase'e yazma.
       if (authLoading || !isInitialized || isHydrating.current) return;
-      if (user && user.id.startsWith('mock-')) {
-          localStorage.setItem('tria_collections', JSON.stringify(collections));
-          return;
-      }
-      if (!user) {
-          localStorage.setItem('tria_collections', JSON.stringify(collections));
-          return;
-      }
-
-      // Supabase Auto-Save
+      
       const saveData = async () => {
-          const payload = collections.map(col => ({
-              id: col.id,
-              user_id: user.id,
-              name: col.name,
-              description: col.description,
-              is_public: col.isPublic,
-              share_token: col.shareToken,
-              movies: col.movies || [], 
-              top_favorite_movies: col.topFavoriteMovies,
-              top_favorite_shows: col.topFavoriteShows,
-              updated_at: new Date().toISOString()
-          }));
-          
-          try {
-              const { error } = await supabase.from('user_collections').upsert(payload, { onConflict: 'id' });
-              if (error) {
-                  console.error("Auto-save error:", error);
-              }
-          } catch (err) { 
-              console.error("Auto-save exception:", err); 
-          }
+        // LocalStorage Sync (Guest & Mock)
+        if (!user || user.id.startsWith('mock-')) {
+            localStorage.setItem('tria_collections', JSON.stringify(collections));
+            return;
+        }
+
+        // Supabase Auto-Save
+        // Not: Eğer collections boşsa, Supabase tarafında bir şey silmiyoruz (Delete işlemi deleteCollection'da yapılır)
+        // Sadece mevcutları güncelliyoruz/ekliyoruz.
+        if (collections.length > 0) {
+            const payload = collections.map(col => ({
+                id: col.id,
+                user_id: user.id,
+                name: col.name,
+                description: col.description,
+                is_public: col.isPublic,
+                share_token: col.shareToken,
+                movies: col.movies || [], 
+                top_favorite_movies: col.topFavoriteMovies,
+                top_favorite_shows: col.topFavoriteShows,
+                updated_at: new Date().toISOString()
+            }));
+            
+            try {
+                const { error } = await supabase.from('user_collections').upsert(payload, { onConflict: 'id' });
+                if (error) console.error("Auto-save error:", error);
+            } catch (err) { console.error("Auto-save exception:", err); }
+        }
       };
       
       // Debounce save
@@ -344,12 +340,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const deleteCollection = async (id: string) => {
-      if (collections.length <= 1) {
-          showToast('En az bir liste kalmalıdır.', 'error');
-          return;
-      }
+      // Changed: Allow deleting the last collection (Empty State Support)
       
-      const nextId = collections.find(c => c.id !== id)?.id || 'default';
+      const nextId = collections.find(c => c.id !== id)?.id || '';
       setCollections(prev => prev.filter(c => c.id !== id));
       setActiveCollectionId(nextId);
 
@@ -361,12 +354,10 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // --- 5. DATA OPERATIONS ---
   
-  // Force Sync: Kullanıcı manuel olarak verileri tekrar çekmek isterse
   const forceSync = async () => {
       if (!user || user.id.startsWith('mock-')) return;
       setIsInitialized(false);
       try {
-          // FIX: Replaced 'created_at' with 'updated_at' here as well
           const { data, error } = await supabase
                 .from('user_collections')
                 .select(`
@@ -386,7 +377,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           if (error) throw error;
           
-          if (data && data.length > 0) {
+          if (data) {
                 const mapped: Collection[] = data.map((d: any) => ({
                     id: d.id,
                     name: d.name,
@@ -399,6 +390,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     ownerId: d.user_id
                 }));
                 setCollections(mapped);
+                if (mapped.length > 0) setActiveCollectionId(mapped[0].id);
+                else setActiveCollectionId('');
                 showToast('Veriler senkronize edildi.', 'success');
           }
       } catch (e) {
@@ -433,8 +426,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const toggleMovieInCollection = useCallback(async (movie: Movie) => {
+    // If no collection exists, warn user
+    if (!activeCollectionId && collections.length === 0) {
+        showToast('Lütfen önce bir liste oluşturun.', 'info');
+        return;
+    }
+
     const targetCol = collections.find(c => c.id === activeCollectionId);
-    
     if (!targetCol) return;
 
     const exists = targetCol.movies.some(m => m.id === movie.id);
@@ -501,11 +499,11 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [activeCollectionId]);
 
   const resetCollections = () => {
-      setCollections([DEFAULT_COLLECTION]);
-      setActiveCollectionId('default');
+      setCollections([]);
+      setActiveCollectionId('');
       setSharedList(null);
       setIsInitialized(false);
-      localStorage.setItem('tria_collections', JSON.stringify([DEFAULT_COLLECTION]));
+      localStorage.setItem('tria_collections', JSON.stringify([]));
   };
 
   return (

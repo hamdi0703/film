@@ -1,15 +1,15 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Movie, Genre } from '../../types';
 import { useCollectionContext } from '../../context/CollectionContext';
 import { useReviewContext } from '../../context/ReviewContext';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import MovieCard from '../MovieCard';
 import DashboardHeader from '../DashboardHeader';
 import CollectionAnalytics from '../analytics/CollectionAnalytics'; 
 import CollectionControls, { SortOptionType, GroupOptionType, FilterStatusType } from '../dashboard/CollectionControls';
 import TopFavorites from '../dashboard/TopFavorites';
 import FavoriteSelectorModal from '../dashboard/FavoriteSelectorModal';
-import { useToast } from '../../context/ToastContext';
 import ErrorBoundary from '../ErrorBoundary';
 
 interface DashboardViewProps {
@@ -24,6 +24,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   genres
 }) => {
   const { showToast } = useToast();
+  const { user, openAuthModal } = useAuth();
   const { 
     collections, 
     activeCollectionId, 
@@ -36,7 +37,104 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   } = useCollectionContext();
 
   const { reviews } = useReviewContext();
-  
+
+  // --- EMPTY STATE UI COMPONENT ---
+  if (collections.length === 0) {
+      const [newListName, setNewListName] = useState('');
+      const [isCreating, setIsCreating] = useState(false);
+
+      const handleCreateFirst = (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!user) {
+              openAuthModal();
+              return;
+          }
+          if (newListName.trim()) {
+              createCollection(newListName.trim());
+          }
+      };
+
+      return (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in p-4">
+              <div className="max-w-3xl w-full bg-white dark:bg-neutral-900 rounded-[2.5rem] p-8 md:p-12 shadow-2xl border border-neutral-200 dark:border-neutral-800 text-center relative overflow-hidden">
+                  
+                  {/* Background Decoration */}
+                  <div className="absolute top-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                  <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+
+                  <div className="relative z-10">
+                      <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-8 transform rotate-3 hover:rotate-6 transition-transform">
+                          <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                      </div>
+
+                      <h2 className="text-3xl md:text-4xl font-black text-neutral-900 dark:text-white mb-4 tracking-tight">
+                          Koleksiyonunu Başlat
+                      </h2>
+                      <p className="text-neutral-500 dark:text-neutral-400 text-lg mb-10 max-w-lg mx-auto leading-relaxed">
+                          Henüz bir listen yok. Sinema zevkini yansıtan listeler oluşturarak arşivini düzenlemeye başla.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 text-left">
+                          <div className="bg-neutral-50 dark:bg-neutral-800/50 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800">
+                              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-3 font-bold">1</div>
+                              <h4 className="font-bold text-neutral-900 dark:text-white mb-1">Düzenle</h4>
+                              <p className="text-xs text-neutral-500">Favorilerini türlere, yıllara veya ruh haline göre kategorize et.</p>
+                          </div>
+                          <div className="bg-neutral-50 dark:bg-neutral-800/50 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800">
+                              <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center mb-3 font-bold">2</div>
+                              <h4 className="font-bold text-neutral-900 dark:text-white mb-1">Paylaş</h4>
+                              <p className="text-xs text-neutral-500">Listelerini arkadaşlarınla paylaş ve sinema zevkini göster.</p>
+                          </div>
+                          <div className="bg-neutral-50 dark:bg-neutral-800/50 p-5 rounded-2xl border border-neutral-100 dark:border-neutral-800">
+                              <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-xl flex items-center justify-center mb-3 font-bold">3</div>
+                              <h4 className="font-bold text-neutral-900 dark:text-white mb-1">Keşfet</h4>
+                              <p className="text-xs text-neutral-500">İstatistiklerle izleme alışkanlıklarını analiz et.</p>
+                          </div>
+                      </div>
+
+                      {!isCreating ? (
+                          <button 
+                              onClick={() => setIsCreating(true)}
+                              className="px-8 py-4 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-xl"
+                          >
+                              İlk Listeni Oluştur
+                          </button>
+                      ) : (
+                          <form onSubmit={handleCreateFirst} className="max-w-sm mx-auto animate-slide-in-up">
+                              <div className="flex gap-2">
+                                  <input 
+                                      type="text" 
+                                      autoFocus
+                                      value={newListName}
+                                      onChange={(e) => setNewListName(e.target.value)}
+                                      placeholder="Örn: Favorilerim"
+                                      className="flex-1 px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white border-2 border-transparent focus:border-indigo-500 outline-none font-bold"
+                                  />
+                                  <button 
+                                      type="submit"
+                                      disabled={!newListName.trim()}
+                                      className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50"
+                                  >
+                                      Oluştur
+                                  </button>
+                              </div>
+                              <button 
+                                  type="button" 
+                                  onClick={() => setIsCreating(false)}
+                                  className="mt-3 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white underline"
+                              >
+                                  İptal
+                              </button>
+                          </form>
+                      )}
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   // --- Auto-Repair Data Effect ---
   useEffect(() => {
       refreshCollectionData();
