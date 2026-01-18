@@ -14,7 +14,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initialTab = 'PROFILE' }) => {
   const { collections } = useCollectionContext();
-  const { user, signOut, updateProfile, updatePassword, deleteAccount, updateUserStatus } = useAuth();
+  const { user, signOut, updateProfile, updatePassword, deleteAccount } = useAuth();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
@@ -275,16 +275,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ onClose, onResetApp, initia
                     <div className="pt-4 space-y-4">
                         <h3 className="text-sm font-bold text-red-500 border-b border-neutral-100 dark:border-neutral-800 pb-2">Tehlikeli Bölge</h3>
                          
-                        <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-900 p-4 rounded-xl">
-                            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Hesabı Dondur</span>
-                            <button 
-                                onClick={() => updateUserStatus(!user?.is_blocked)}
-                                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${user?.is_blocked ? 'bg-red-100 text-red-600' : 'bg-neutral-200 text-neutral-600'}`}
-                            >
-                                {user?.is_blocked ? 'Aktif Et' : 'Dondur'}
-                            </button>
-                        </div>
-
                         <button 
                             onClick={handleDeleteAccount}
                             className="w-full py-3 border border-red-500 text-red-500 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

@@ -151,9 +151,13 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
     if (!movies || movies.length === 0) return null;
 
     let totalMinutes = 0;
+    let totalEpisodes = 0; // NEW: Bölüm sayacı
     let totalRating = 0;
     let ratedCount = 0;
     
+    // Listede Dizi olup olmadığını kontrol et
+    const isTvContext = movies.some(m => !!(m.name || m.first_air_date));
+
     const genreCounts: Record<number, number> = {};
     const decadeCounts: Record<string, number> = {};
     const countryCounts: Record<string, { name: string; count: number; code: string }> = {};
@@ -161,13 +165,18 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
     const directorCounts: Record<number, { id: number; name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
-        // 1. Süre & Puan
+        // 1. Süre & Puan & Bölüm
+        const isTv = !!(m.name || m.first_air_date);
         let duration = 0;
-        if (m.name || m.first_air_date) { // TV
+        
+        if (isTv) { // TV
             const epLen = (Array.isArray(m.episode_run_time) && m.episode_run_time.length > 0) 
                 ? m.episode_run_time[0] 
                 : (m.runtime || 45); 
             duration = (m.number_of_episodes || 1) * epLen;
+            
+            // Bölüm Sayısını Ekle
+            totalEpisodes += (m.number_of_episodes || 0);
         } else { // Movie
             duration = m.runtime || 0;
         }
@@ -277,6 +286,8 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
     return {
         totalCount: movies.length,
         totalHours,
+        totalEpisodes, // Return episode count
+        isTvContext,   // Return context flag
         avgRating,
         genres: sortedGenres,
         decades: sortedDecades,
@@ -297,13 +308,24 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                 <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">Toplam İçerik</span>
                 <span className="text-2xl font-black text-neutral-900 dark:text-white">{stats.totalCount}</span>
             </div>
+            
+            {/* CONDITIONAL KPI CARD: EPISODES VS HOURS */}
             <div className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col justify-center">
-                <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">Toplam Süre</span>
+                <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    {stats.isTvContext ? 'Toplam Bölüm' : 'Toplam Süre'}
+                </span>
                 <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-black text-neutral-900 dark:text-white">{stats.totalHours}</span>
-                    <span className="text-xs font-bold text-neutral-500">saat</span>
+                    {stats.isTvContext ? (
+                         <span className="text-2xl font-black text-neutral-900 dark:text-white">{stats.totalEpisodes}</span>
+                    ) : (
+                        <>
+                            <span className="text-2xl font-black text-neutral-900 dark:text-white">{stats.totalHours}</span>
+                            <span className="text-xs font-bold text-neutral-500">saat</span>
+                        </>
+                    )}
                 </div>
             </div>
+
             <div className="bg-white dark:bg-neutral-900 p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col justify-center">
                 <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">Ort. Puan</span>
                 <div className="flex items-center gap-2">
