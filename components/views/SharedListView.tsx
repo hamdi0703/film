@@ -7,6 +7,7 @@ import MediaTypeNavbar from '../MediaTypeNavbar';
 import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
 import TopFavorites from '../dashboard/TopFavorites';
 import ErrorBoundary from '../ErrorBoundary';
+import { useTheme } from '../../context/ThemeContext'; // IMPORT
 
 interface SharedListViewProps {
   onSelectMovie: (movie: Movie) => void;
@@ -19,6 +20,7 @@ type TabOption = 'movie' | 'tv';
 const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, onBack }) => {
   const { sharedList } = useCollectionContext();
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme(); // THEME HOOK
   
   const [activeTab, setActiveTab] = useState<TabOption>('movie');
 
@@ -57,7 +59,26 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
   // Liste yoksa
   if (!sharedList) {
     return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in text-center px-4">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in text-center px-4 relative">
+             {/* THEME TOGGLE FOR EMPTY STATE */}
+            <div className="absolute top-4 right-4 z-50">
+                <button 
+                    onClick={toggleTheme}
+                    className="p-3 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm hover:scale-105 transition-transform"
+                    aria-label="Tema Değiştir"
+                >
+                    {theme === 'dark' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707M12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    )}
+                </button>
+            </div>
+
             <div className="w-20 h-20 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center mb-6">
                 <svg className="w-10 h-10 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -78,10 +99,29 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
   }
 
   return (
-    <div className="animate-slide-in-up pb-20 pt-4 max-w-6xl mx-auto">
+    <div className="animate-slide-in-up pb-20 pt-4 max-w-6xl mx-auto relative">
+      
+      {/* --- THEME TOGGLE BUTTON (FIXED POSITION) --- */}
+      <div className="fixed top-6 right-6 z-[60]">
+        <button 
+            onClick={toggleTheme}
+            className="p-3 rounded-full bg-white/50 dark:bg-black/50 backdrop-blur-md shadow-lg border border-white/20 dark:border-white/10 text-neutral-900 dark:text-white hover:scale-105 transition-transform"
+            aria-label="Tema Değiştir"
+        >
+            {theme === 'dark' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707M12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+            )}
+        </button>
+      </div>
       
       {/* 1. BAŞLIK */}
-      <div className="text-center mb-10 px-4">
+      <div className="text-center mb-10 px-4 pt-8 md:pt-0">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider mb-6 border border-indigo-100 dark:border-indigo-800">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
               Paylaşılan Koleksiyon

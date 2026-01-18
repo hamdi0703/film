@@ -8,7 +8,7 @@ interface TopFavoritesProps {
   collectionMovies: Movie[];
   onSlotClick: (index: number) => void;
   type: MediaType;
-  readOnly?: boolean; // NEW PROP
+  readOnly?: boolean; 
 }
 
 const TopFavorites: React.FC<TopFavoritesProps> = ({ 
@@ -38,13 +38,14 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
 
     // User Data
     const userReview = movieId ? reviews[movieId] : null;
-    const userRating = userReview?.rating;
     
     // Spoiler Logic
     let userComment = userReview?.comment;
     const isSpoiler = userReview?.hasSpoiler;
+    
+    // Eğer spoiler varsa metni değiştir
     if (isSpoiler && userComment) {
-        userComment = "Spoiler içerdiği için gizlendi.";
+        userComment = "⚠️ Spoiler içeriyor.";
     }
 
     // Rank Styling
@@ -123,20 +124,32 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
 
           {/* META INFO */}
           {movie && (
-              <div className="mt-5 text-center w-full px-1 animate-fade-in">
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight mb-1 truncate">
+              <div className="mt-5 text-center w-full px-1 animate-fade-in flex flex-col items-center">
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight mb-1 truncate w-full">
                       {movie.title || movie.name}
                   </h3>
                   <div className="text-[10px] text-neutral-500 font-medium mb-2">
                       {getYear(movie)}
                   </div>
 
-                  <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="flex items-center justify-center gap-3 mb-2">
                       <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-md">
                           <svg className="w-3 h-3 text-yellow-500 fill-current" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                           <span className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300">{movie.vote_average.toFixed(1)}</span>
                       </div>
                   </div>
+
+                  {/* USER REVIEW SNIPPET (YENİ EKLENEN KISIM) */}
+                  {userComment && (
+                    <div className="w-full mt-1 px-3 py-2 bg-white/60 dark:bg-white/5 rounded-xl border border-neutral-100 dark:border-white/5 relative group/comment transition-colors hover:bg-white dark:hover:bg-neutral-800">
+                        <div className="absolute top-2 left-2 text-indigo-500/20 dark:text-indigo-400/20">
+                            <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 8.44772 14.017 9V11C14.017 11.5523 13.5693 12 13.017 12H12.017V5H22.017V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM5.0166 21L5.0166 18C5.0166 16.8954 5.91203 16 7.0166 16H10.0166C10.5689 16 11.0166 15.5523 11.0166 15V9C11.0166 8.44772 10.5689 8 10.0166 8H6.0166C5.46432 8 5.0166 8.44772 5.0166 9V11C5.0166 11.5523 4.56889 12 4.0166 12H3.0166V5H13.0166V15C13.0166 18.3137 10.3303 21 7.0166 21H5.0166Z" /></svg>
+                        </div>
+                        <p className={`text-[10px] text-neutral-600 dark:text-neutral-400 italic font-medium leading-relaxed line-clamp-2 relative z-10 pl-1 ${isSpoiler ? 'text-red-500 dark:text-red-400 not-italic' : ''}`}>
+                            "{userComment}"
+                        </p>
+                    </div>
+                  )}
               </div>
           )}
       </div>

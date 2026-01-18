@@ -90,56 +90,51 @@ const ListWidget: React.FC<ListWidgetProps> = ({ title, iconColor, items, type, 
   );
 };
 
-// --- ALT BİLEŞEN: MODERN ZAMAN TÜNELİ ---
+// --- ALT BİLEŞEN: CLEAN ZAMAN TÜNELİ (YENİLENDİ) ---
 const TimelineWidget = ({ decades }: { decades: { label: string; count: number }[] }) => {
     const maxCount = Math.max(...decades.map(d => d.count), 1);
     
     return (
-        <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden group">
-            {/* Background Decor */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-            
-            <div className="flex justify-between items-end mb-8 relative z-10">
+        <div className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h3 className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                    <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-teal-500"></span>
                         Zaman Tüneli
                     </h3>
-                    <p className="text-2xl font-bold text-white">Yıllara Göre Dağılım</p>
+                    <p className="text-lg font-bold text-neutral-900 dark:text-white">Yıllara Göre Dağılım</p>
                 </div>
             </div>
 
-            <div className="flex items-end justify-between gap-2 h-32 px-2 relative z-10">
+            <div className="flex items-end justify-between gap-3 h-48 w-full border-b border-neutral-100 dark:border-neutral-800 pb-2">
                 {decades.length > 0 ? decades.map((decade, idx) => {
-                    const heightPercent = Math.max((decade.count / maxCount) * 100, 15); // Min %15 height for visibility
-                    const opacity = 0.4 + ((decade.count / maxCount) * 0.6); // Dynamic opacity based on count
+                    // Minimum görünürlük için %5 taban yükseklik
+                    const percentage = (decade.count / maxCount) * 100;
+                    const height = Math.max(percentage, 5); 
                     
                     return (
-                        <div key={idx} className="flex-1 flex flex-col items-center group/bar relative">
+                        <div key={idx} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                             {/* Tooltip */}
-                            <div className="absolute -top-8 bg-white text-black text-[10px] font-bold px-2 py-1 rounded shadow-xl opacity-0 group-hover/bar:opacity-100 transition-all transform translate-y-2 group-hover/bar:translate-y-0 z-20 whitespace-nowrap">
+                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-neutral-900 text-white dark:bg-white dark:text-black text-[10px] font-bold py-1 px-2 rounded transform translate-y-2 group-hover:translate-y-0 shadow-lg pointer-events-none z-10 whitespace-nowrap">
                                 {decade.count} Yapım
                             </div>
                             
                             {/* Bar */}
                             <div 
-                                className="w-full max-w-[40px] rounded-t-lg transition-all duration-500 ease-out relative overflow-hidden hover:shadow-[0_0_15px_rgba(45,212,191,0.5)]"
-                                style={{ 
-                                    height: `${heightPercent}%`, 
-                                    backgroundColor: `rgba(45, 212, 191, ${opacity})` // Teal color dynamic opacity
-                                }}
+                                className="w-full max-w-[40px] rounded-t-lg bg-teal-100 dark:bg-teal-900/30 overflow-hidden relative transition-all duration-500"
+                                style={{ height: `${height}%` }}
                             >
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                                <div className="absolute bottom-0 left-0 right-0 top-0 bg-teal-500 opacity-70 group-hover:opacity-100 transition-opacity duration-300"></div>
                             </div>
                             
                             {/* Label */}
-                            <span className="text-[10px] font-medium text-neutral-400 mt-3 -rotate-45 origin-left translate-x-1 whitespace-nowrap">
+                            <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 mt-3 -rotate-45 origin-top-left translate-y-2 whitespace-nowrap">
                                 {decade.label}
                             </span>
                         </div>
                     );
                 }) : (
-                    <div className="w-full h-full flex items-center justify-center text-neutral-600 text-sm">Veri Yok</div>
+                    <div className="w-full flex items-center justify-center text-neutral-400 text-sm h-full italic">Veri bulunamadı</div>
                 )}
             </div>
         </div>
