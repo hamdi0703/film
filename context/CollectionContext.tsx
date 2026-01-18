@@ -97,9 +97,22 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // LOGGED IN USER (Supabase)
         try {
             console.log("Fetching collections for user:", user.id);
+            
+            // FIX: Explicitly select columns to avoid 400 Bad Request due to schema cache mismatch
             const { data, error } = await supabase
                 .from('user_collections')
-                .select('*')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    is_public,
+                    share_token,
+                    movies,
+                    top_favorite_movies,
+                    top_favorite_shows,
+                    user_id,
+                    created_at
+                `)
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: true });
 
@@ -124,9 +137,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     setActiveCollectionId(mapped[0].id);
                 }
             } else {
-                // Gerçekten hiç veri yoksa, varsayılanı kullan ama bunu DB'ye yazmak için initialized say.
                 console.log("No collections found, using default.");
-                // Burada mevcut state zaten default, dokunmuyoruz.
             }
             
             // BAŞARILI YÜKLEME SONRASI KİLİDİ AÇ
@@ -352,7 +363,18 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
           const { data, error } = await supabase
                 .from('user_collections')
-                .select('*')
+                .select(`
+                    id,
+                    name,
+                    description,
+                    is_public,
+                    share_token,
+                    movies,
+                    top_favorite_movies,
+                    top_favorite_shows,
+                    user_id,
+                    created_at
+                `)
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: true });
           
