@@ -4,12 +4,9 @@ import { Movie, Genre, MediaType } from '../../types';
 import MovieCard from '../MovieCard';
 import { useAuth } from '../../context/AuthContext';
 import MediaTypeNavbar from '../MediaTypeNavbar';
-import StatsOverview from '../StatsOverview';
-import GenreChart from '../GenreChart';
-import ErasChart from '../analytics/ErasChart';
+import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
 import ActorSpotlight from '../analytics/ActorSpotlight';
 import DirectorSpotlight from '../analytics/DirectorSpotlight';
-import CountrySpotlight from '../analytics/CountrySpotlight';
 import TopFavorites from '../dashboard/TopFavorites';
 import ErrorBoundary from '../ErrorBoundary';
 
@@ -96,7 +93,6 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
               {sharedList.name}
           </h1>
           
-          {/* İyileştirilmiş Metin Kontrastı */}
           <div className="flex flex-col items-center gap-1 mb-6">
               <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">Hazırlayan</span>
               <span className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
@@ -128,43 +124,23 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                 />
             </div>
 
-            {/* 4. İSTATİSTİK GRİDİ - TÜM BİLEŞENLER EKLENDİ */}
-            {/* Arka plan vurgusu eklenerek ayrışması sağlandı */}
-            <div className="bg-neutral-50 dark:bg-neutral-900/30 p-6 rounded-3xl mb-12 border border-neutral-100 dark:border-neutral-800">
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
-                    Koleksiyon Analizi
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-                    <ErrorBoundary fullHeight>
-                        <StatsOverview movies={filteredMovies} />
-                    </ErrorBoundary>
-                    
-                    {/* Oyuncu Listesi Eklendi */}
-                    <ErrorBoundary fullHeight>
+            {/* 4. ANALİZ BÖLÜMÜ (YENİ) */}
+            <div className="mb-12">
+                 <ErrorBoundary>
+                    <CollectionAnalytics 
+                        movies={filteredMovies} 
+                        genres={genres}
+                    />
+                 </ErrorBoundary>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                     <ErrorBoundary fullHeight>
                         <ActorSpotlight movies={filteredMovies} />
-                    </ErrorBoundary>
-
-                    {/* Yönetmen Listesi Eklendi */}
-                    <ErrorBoundary fullHeight>
+                     </ErrorBoundary>
+                     <ErrorBoundary fullHeight>
                         <DirectorSpotlight movies={filteredMovies} />
-                    </ErrorBoundary>
-
-                    <ErrorBoundary fullHeight>
-                        <GenreChart 
-                            movies={filteredMovies} 
-                            genres={genres} 
-                        />
-                    </ErrorBoundary>
-                    <ErrorBoundary fullHeight>
-                        <ErasChart movies={filteredMovies} />
-                    </ErrorBoundary>
-                    
-                    <ErrorBoundary fullHeight>
-                        <CountrySpotlight movies={filteredMovies} />
-                    </ErrorBoundary>
-                </div>
+                     </ErrorBoundary>
+                 </div>
             </div>
 
             {/* 5. FİLM GRİDİ */}

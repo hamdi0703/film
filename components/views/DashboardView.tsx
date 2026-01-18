@@ -4,12 +4,9 @@ import { useCollectionContext } from '../../context/CollectionContext';
 import { useReviewContext } from '../../context/ReviewContext';
 import MovieCard from '../MovieCard';
 import DashboardHeader from '../DashboardHeader';
-import StatsOverview from '../StatsOverview';
-import GenreChart from '../GenreChart';
-import ErasChart from '../analytics/ErasChart';
+import CollectionAnalytics from '../analytics/CollectionAnalytics'; // YENİ BİLEŞEN
 import ActorSpotlight from '../analytics/ActorSpotlight';
 import DirectorSpotlight from '../analytics/DirectorSpotlight';
-import CountrySpotlight from '../analytics/CountrySpotlight';
 import CollectionControls, { SortOptionType, GroupOptionType, FilterStatusType } from '../dashboard/CollectionControls';
 import TopFavorites from '../dashboard/TopFavorites';
 import FavoriteSelectorModal from '../dashboard/FavoriteSelectorModal';
@@ -21,7 +18,6 @@ interface DashboardViewProps {
   genres: Genre[];
 }
 
-// REMOVED 'all', strictly binary choice now
 type TabOption = 'movie' | 'tv';
 
 const DashboardView: React.FC<DashboardViewProps> = ({
@@ -44,7 +40,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   const { reviews } = useReviewContext();
   
   // --- View Control State ---
-  // Default is 'movie' to ensure a focused initial state
   const [activeTab, setActiveTab] = useState<TabOption>('movie');
   
   const [sortOption, setSortOption] = useState<SortOptionType>('added_desc');
@@ -248,11 +243,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         const queryParam = await shareCollection(activeCollectionId);
         
         if (queryParam) {
-            // FIX: Sabit Production URL kullanıyoruz
             const PRODUCTION_URL = 'https://filmm-chi.vercel.app';
-            // Slash kontrolü yaparak birleştiriyoruz
             const finalLink = `${PRODUCTION_URL}/${queryParam}`;
-
             navigator.clipboard.writeText(finalLink);
             showToast('Liste bağlantısı kopyalandı!', 'success');
         } else {
@@ -266,13 +258,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleGenreClick = (id: number) => {
-      setFilterGenre(id === filterGenre ? null : id);
-  };
-
   const handleSlotSelect = (movieId: number) => {
       if (selectorSlotIndex !== null) {
-          updateTopFavorite(selectorSlotIndex, movieId, activeTab); // Pass activeTab type
+          updateTopFavorite(selectorSlotIndex, movieId, activeTab); 
           setSelectorSlotIndex(null);
           showToast('Vitrin güncellendi', 'success');
       }
@@ -280,7 +268,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleSlotClear = () => {
       if (selectorSlotIndex !== null) {
-          updateTopFavorite(selectorSlotIndex, null, activeTab); // Pass activeTab type
+          updateTopFavorite(selectorSlotIndex, null, activeTab); 
           setSelectorSlotIndex(null);
           showToast('Slot temizlendi', 'info');
       }
@@ -297,7 +285,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             onShare={handleShareList}
         />
         
-        {/* NEW: Binary Tab Bar (Movie vs TV) - MOVED UP for visual hierarchy */}
+        {/* Tab Bar */}
         <div className="flex justify-center mb-6 animate-fade-in">
             <div className="bg-neutral-100 dark:bg-neutral-800 p-1.5 rounded-xl inline-flex items-center shadow-inner relative">
                 <button
@@ -329,11 +317,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
         </div>
 
-        {/* TOP FAVORITES SHOWCASE (Context Aware) */}
+        {/* TOP FAVORITES SHOWCASE */}
         {activeCollectionMovies.length > 0 && (
             <TopFavorites 
                 favorites={activeFavorites}
-                collectionMovies={tabFilteredMovies} // Only allow picking from current tab type
+                collectionMovies={tabFilteredMovies} 
                 onSlotClick={setSelectorSlotIndex}
                 type={activeTab}
             />
@@ -342,7 +330,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         {/* SELECTOR MODAL */}
         {selectorSlotIndex !== null && (
             <FavoriteSelectorModal 
-                collectionMovies={tabFilteredMovies} // Only show relevant movies/shows in modal
+                collectionMovies={tabFilteredMovies} 
                 slotIndex={selectorSlotIndex}
                 onSelect={handleSlotSelect}
                 onClear={handleSlotClear}
@@ -350,34 +338,26 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             />
         )}
 
-        {/* ANALYTICS SECTION */}
+        {/* --- YENİ ANALİTİK BÖLÜMÜ --- */}
+        {/* Eski dağınık chartlar yerine tek bir bileşen */}
         {tabFilteredMovies.length > 0 && (
-            <div className="mb-12 space-y-6">
-                <ErrorBoundary>
-                    <StatsOverview movies={tabFilteredMovies} />
-                </ErrorBoundary>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-                     <ErrorBoundary fullHeight>
-                        <GenreChart 
-                            movies={tabFilteredMovies} 
-                            genres={genres} 
-                            onGenreClick={handleGenreClick}
-                        />
-                     </ErrorBoundary>
-                     <ErrorBoundary fullHeight>
-                        <ErasChart movies={tabFilteredMovies} />
-                     </ErrorBoundary>
+            <div className="mb-12">
+                 <ErrorBoundary>
+                    <CollectionAnalytics 
+                        movies={tabFilteredMovies} 
+                        genres={genres}
+                    />
+                 </ErrorBoundary>
+                 
+                 {/* Spotlight'lar (Who) ayrı olarak altta tutuldu, ama yan yana */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                      <ErrorBoundary fullHeight>
                         <ActorSpotlight movies={tabFilteredMovies} />
                      </ErrorBoundary>
                      <ErrorBoundary fullHeight>
                         <DirectorSpotlight movies={tabFilteredMovies} />
                      </ErrorBoundary>
-                     <ErrorBoundary fullHeight>
-                        <CountrySpotlight movies={tabFilteredMovies} />
-                     </ErrorBoundary>
-                </div>
+                 </div>
             </div>
         )}
 
@@ -430,7 +410,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                         onToggleSelect={toggleMovieInCollection}
                                         onClick={onSelectMovie} 
                                         allGenres={genres}
-                                        mediaType={activeTab} // PASSING THE TYPE EXPLICITLY
+                                        mediaType={activeTab} 
                                     />
                                 ))}
                             </div>
