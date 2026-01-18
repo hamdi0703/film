@@ -9,7 +9,7 @@ interface CollectionAnalyticsProps {
 
 const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genres }) => {
   
-  // --- MERKEZİ HESAPLAMA MOTORU ---
+  // --- MERKEZİ HESAPLAMA MOTORU (GÜÇLENDİRİLMİŞ) ---
   const stats = useMemo(() => {
     if (!movies || movies.length === 0) return null;
 
@@ -26,29 +26,32 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
     const directorCounts: Record<number, { id: number; name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
-        // 1. Süre Hesaplama
+        // --- 1. SÜRE HESAPLAMA (Güvenli) ---
         let duration = 0;
-        if (m.name || m.first_air_date) { // TV
-            const epLen = (m.episode_run_time && m.episode_run_time.length > 0) ? m.episode_run_time[0] : (m.runtime || 42);
+        if (m.name || m.first_air_date) { // TV Logic
+            const epLen = (Array.isArray(m.episode_run_time) && m.episode_run_time.length > 0) 
+                ? m.episode_run_time[0] 
+                : (m.runtime || 45); // Fallback to 45 mins if unknown
             duration = (m.number_of_episodes || 1) * epLen;
-        } else { // Movie
+        } else { // Movie Logic
             duration = m.runtime || 0;
         }
         totalMinutes += duration;
 
-        // 2. Puan Hesaplama
-        if (m.vote_average > 0) {
+        // --- 2. PUAN HESAPLAMA ---
+        if (typeof m.vote_average === 'number' && m.vote_average > 0) {
             totalRating += m.vote_average;
             ratedCount++;
         }
 
-        // 3. Tür Dağılımı
+        // --- 3. TÜR DAĞILIMI ---
+        // genre_ids (listeden gelen) veya genres (detaydan gelen) kontrolü
         const ids = m.genre_ids || m.genres?.map(g => g.id) || [];
         ids.forEach(id => {
-            genreCounts[id] = (genreCounts[id] || 0) + 1;
+            if (id) genreCounts[id] = (genreCounts[id] || 0) + 1;
         });
 
-        // 4. Dönem (Decade) Analizi
+        // --- 4. DÖNEM (DECADE) ANALİZİ ---
         const dateString = m.release_date || m.first_air_date;
         if (dateString) {
             const date = new Date(dateString);
@@ -60,56 +63,61 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
             }
         }
 
-        // 5. Coğrafya
-        if (m.production_countries && m.production_countries.length > 0) {
+        // --- 5. COĞRAFYA ---
+        if (Array.isArray(m.production_countries)) {
             m.production_countries.forEach(c => {
-                 if (!countryCounts[c.iso_3166_1]) {
-                     countryCounts[c.iso_3166_1] = { name: c.name, count: 0, code: c.iso_3166_1 };
+                 if (c && c.iso_3166_1) {
+                     if (!countryCounts[c.iso_3166_1]) {
+                         countryCounts[c.iso_3166_1] = { name: c.name, count: 0, code: c.iso_3166_1 };
+                     }
+                     countryCounts[c.iso_3166_1].count += 1;
                  }
-                 countryCounts[c.iso_3166_1].count += 1;
             });
         }
 
-        // 6. Oyuncular (Cast) - Sadece krediler varsa
-        if (m.credits?.cast) {
-            // Sadece ilk 10 oyuncuyu al (Başroller ağırlıklı olsun diye)
-            m.credits.cast.slice(0, 10).forEach(actor => {
-                if (!actorCounts[actor.id]) {
-                    actorCounts[actor.id] = { 
-                        id: actor.id, 
-                        name: actor.name, 
-                        count: 0, 
-                        image: actor.profile_path 
-                    };
+        // --- 6. OYUNCULAR (CAST) ---
+        // Veri yoksa boş dizi ata, patlamayı önle.
+        const castList = m.credits?.cast || [];
+        if (castList.length > 0) {
+            // Sadece ilk 8 oyuncuyu al (Başroller)
+            castList.slice(0, 8).forEach(actor => {
+                if (actor && actor.id) {
+                    if (!actorCounts[actor.id]) {
+                        actorCounts[actor.id] = { 
+                            id: actor.id, 
+                            name: actor.name, 
+                            count: 0, 
+                            image: actor.profile_path 
+                        };
+                    }
+                    actorCounts[actor.id].count += 1;
                 }
-                actorCounts[actor.id].count += 1;
             });
         }
 
-        // 7. Yönetmenler (Crew) & Yaratıcılar (TV)
-        let foundDirector = false;
+        // --- 7. YÖNETMENLER & YARATICILAR ---
+        const crewList = m.credits?.crew || [];
+        const creatorsList = m.created_by || [];
         
-        // Film Yönetmeni
-        if (m.credits?.crew) {
-            const directors = m.credits.crew.filter(c => c.job === 'Director');
-            directors.forEach(d => {
+        // A. Film Yönetmenleri
+        crewList.filter(c => c.job === 'Director').forEach(d => {
+            if (d && d.id) {
                 if (!directorCounts[d.id]) {
                     directorCounts[d.id] = { id: d.id, name: d.name, count: 0, image: d.profile_path };
                 }
                 directorCounts[d.id].count += 1;
-                foundDirector = true;
-            });
-        }
+            }
+        });
 
-        // Dizi Yaratıcısı (Eğer yönetmen bulunamadıysa veya ek olarak)
-        if (m.created_by && m.created_by.length > 0) {
-            m.created_by.forEach(creator => {
+        // B. Dizi Yaratıcıları (Created By)
+        creatorsList.forEach(creator => {
+            if (creator && creator.id) {
                 if (!directorCounts[creator.id]) {
                     directorCounts[creator.id] = { id: creator.id, name: creator.name, count: 0, image: creator.profile_path };
                 }
                 directorCounts[creator.id].count += 1;
-            });
-        }
+            }
+        });
     });
 
     // --- VERİ FORMATLAMA & SIRALAMA ---
@@ -166,10 +174,11 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                         src={`${IMAGE_BASE_URL}${item.image}`} 
                         alt={item.name}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-neutral-500">
-                        {item.name.charAt(0)}
+                        {item.name ? item.name.charAt(0) : '?'}
                     </div>
                 )}
             </div>
@@ -212,22 +221,26 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                     <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
                     Tür Dağılımı
                 </h3>
-                <div className="space-y-5">
-                    {stats.genres.map((genre, idx) => (
-                        <div key={idx} className="group">
-                            <div className="flex justify-between text-xs font-bold mb-1.5">
-                                <span className="text-neutral-700 dark:text-neutral-300">{genre.name}</span>
-                                <span className="text-neutral-400">{genre.count}</span>
+                {stats.genres.length > 0 ? (
+                    <div className="space-y-5">
+                        {stats.genres.map((genre, idx) => (
+                            <div key={idx} className="group">
+                                <div className="flex justify-between text-xs font-bold mb-1.5">
+                                    <span className="text-neutral-700 dark:text-neutral-300">{genre.name}</span>
+                                    <span className="text-neutral-400">{genre.count}</span>
+                                </div>
+                                <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-indigo-500 rounded-full transition-all duration-1000 group-hover:bg-indigo-400" 
+                                        style={{ width: `${genre.percent}%` }}
+                                    ></div>
+                                </div>
                             </div>
-                            <div className="w-full bg-neutral-100 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-indigo-500 rounded-full transition-all duration-1000 group-hover:bg-indigo-400" 
-                                    style={{ width: `${genre.percent}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-xs text-neutral-400 text-center py-4">Veri yok</div>
+                )}
             </div>
         </div>
 
@@ -239,29 +252,33 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                     <span className="w-1.5 h-4 bg-teal-500 rounded-full"></span>
                     Zaman Tüneli
                 </h3>
-                <div className="flex-1 flex items-end justify-between gap-2 px-2">
-                    {stats.decades.map((decade, idx) => {
-                        const maxCount = Math.max(...stats.decades.map(d => d.count), 1);
-                        const heightPercent = Math.max((decade.count / maxCount) * 100, 10);
-                        
-                        return (
-                            <div key={idx} className="flex-1 flex flex-col items-center group">
-                                <div className="relative w-full flex justify-center">
-                                    <div 
-                                        className="w-full max-w-[24px] bg-teal-500/20 dark:bg-teal-500/20 rounded-t-lg group-hover:bg-teal-500/40 transition-colors relative overflow-hidden"
-                                        style={{ height: `${heightPercent}px`, minHeight: '20px' }}
-                                    >
-                                        <div className="absolute bottom-0 left-0 right-0 bg-teal-500 h-full opacity-60"></div>
+                {stats.decades.length > 0 ? (
+                    <div className="flex-1 flex items-end justify-between gap-2 px-2">
+                        {stats.decades.map((decade, idx) => {
+                            const maxCount = Math.max(...stats.decades.map(d => d.count), 1);
+                            const heightPercent = Math.max((decade.count / maxCount) * 100, 10);
+                            
+                            return (
+                                <div key={idx} className="flex-1 flex flex-col items-center group">
+                                    <div className="relative w-full flex justify-center">
+                                        <div 
+                                            className="w-full max-w-[24px] bg-teal-500/20 dark:bg-teal-500/20 rounded-t-lg group-hover:bg-teal-500/40 transition-colors relative overflow-hidden"
+                                            style={{ height: `${heightPercent}px`, minHeight: '20px' }}
+                                        >
+                                            <div className="absolute bottom-0 left-0 right-0 bg-teal-500 h-full opacity-60"></div>
+                                        </div>
+                                        <div className="absolute -top-6 text-[10px] font-bold text-neutral-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {decade.count}
+                                        </div>
                                     </div>
-                                    <div className="absolute -top-6 text-[10px] font-bold text-neutral-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {decade.count}
-                                    </div>
+                                    <span className="text-[10px] font-bold text-neutral-400 mt-2 -rotate-45 origin-left translate-y-2">{decade.label}</span>
                                 </div>
-                                <span className="text-[10px] font-bold text-neutral-400 mt-2 -rotate-45 origin-left translate-y-2">{decade.label}</span>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-xs text-neutral-400 text-center py-4 mt-10">Tarih bilgisi yok</div>
+                )}
             </div>
 
             {/* Yönetmenler */}
@@ -274,7 +291,9 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                     {stats.directors.length > 0 ? stats.directors.map((director, idx) => (
                         <ProfileRow key={idx} item={director} />
                     )) : (
-                        <p className="text-xs text-neutral-400 text-center py-4">Veri bulunamadı.</p>
+                        <p className="text-xs text-neutral-400 text-center py-4">
+                            Veri bulunamadı. <br/> <span className="opacity-50 font-light">Listeyi paylaşırsanız detaylar otomatik yüklenir.</span>
+                        </p>
                     )}
                 </div>
             </div>
@@ -289,7 +308,7 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                     Yapım Ülkeleri
                 </h3>
                 <div className="space-y-3">
-                    {stats.countries.map((country, idx) => (
+                    {stats.countries.length > 0 ? stats.countries.map((country, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                             <div className="flex items-center gap-3">
                                 <img 
@@ -305,7 +324,9 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                                 {country.count}
                             </span>
                         </div>
-                    ))}
+                    )) : (
+                        <p className="text-xs text-neutral-400 text-center py-4">Ülke bilgisi yok.</p>
+                    )}
                 </div>
             </div>
 
@@ -319,7 +340,9 @@ const CollectionAnalytics: React.FC<CollectionAnalyticsProps> = ({ movies, genre
                     {stats.actors.length > 0 ? stats.actors.map((actor, idx) => (
                         <ProfileRow key={idx} item={actor} />
                     )) : (
-                        <p className="text-xs text-neutral-400 text-center py-4">Veri bulunamadı.</p>
+                         <p className="text-xs text-neutral-400 text-center py-4">
+                            Veri bulunamadı. <br/> <span className="opacity-50 font-light">Listeyi paylaşırsanız detaylar otomatik yüklenir.</span>
+                        </p>
                     )}
                 </div>
             </div>

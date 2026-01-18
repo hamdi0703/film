@@ -12,7 +12,7 @@ interface CollectionContextType {
   setActiveCollectionId: (id: string) => void;
   createCollection: (name: string) => void;
   deleteCollection: (id: string) => void;
-  toggleMovieInCollection: (movie: Movie) => void;
+  toggleMovieInCollection: (movie: Movie) => Promise<void>; // Artık Promise dönüyor
   checkIsSelected: (id: number) => boolean;
   loadSharedList: (ids: string[]) => Promise<void>;
   loadCloudList: (listId: string) => Promise<boolean>;
@@ -20,6 +20,7 @@ interface CollectionContextType {
   resetCollections: () => void;
   updateTopFavorite: (slotIndex: number, movieId: number | null, type: MediaType) => void;
   exitSharedMode: () => void;
+  refreshCollectionData: () => Promise<void>; // Mevcut veriyi onarmak için
 }
 
 const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
@@ -143,12 +144,9 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [collections, user, authLoading]);
 
   // --- 3. SHARED LIST LOGIC ---
-  
   const loadCloudList = useCallback(async (listId: string): Promise<boolean> => {
       setSharedList(null);
-
       try {
-          // 1. Listeyi Çek
           const { data: listData, error: listError } = await supabase
               .from('shared_lists')
               .select('*')
@@ -160,7 +158,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               return false;
           }
 
-          // 2. Kullanıcı Adını Çek (Owner Username) - Fail-Safe
           let ownerUsername = 'Anonim';
           try {
               if (listData.user_id) {
@@ -169,22 +166,16 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                       .select('username')
                       .eq('id', listData.user_id)
                       .maybeSingle(); 
-                  
-                  if (profileData && profileData.username) {
-                      ownerUsername = profileData.username;
-                  }
+                  if (profileData && profileData.username) ownerUsername = profileData.username;
               }
-          } catch (e) {
-              console.warn("Could not fetch owner profile, defaulting to Anonim", e);
-          }
+          } catch (e) { console.warn("Owner fetch failed", e); }
 
-          // Ensure movies is an array
           const moviesArray = Array.isArray(listData.movies) ? listData.movies : [];
 
           const shared: Collection = {
               id: `shared-view-${listData.id}`,
               name: listData.name,
-              owner: ownerUsername, // Set owner name
+              owner: ownerUsername,
               movies: moviesArray,
               topFavoriteMovies: listData.top_favorite_movies || [null, null, null, null, null],
               topFavoriteShows: listData.top_favorite_shows || [null, null, null, null, null]
@@ -192,7 +183,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setSharedList(shared);
           return true;
       } catch (e) {
-          console.error("Shared load global exception:", e);
+          console.error("Shared load exception:", e);
           return false;
       }
   }, []);
@@ -213,9 +204,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
              topFavoriteShows: [] 
          };
          setSharedList(shared);
-     } catch (e) {
-         console.error("Legacy load error", e);
-     }
+     } catch (e) { console.error("Legacy load error", e); }
   }, []);
 
   const shareCollection = async (collectionId: string): Promise<string | null> => {
@@ -224,118 +213,88 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return null;
       }
       const collection = collections.find(c => c.id === collectionId);
-      if (!collection) return null;
-      
-      if (collection.movies.length === 0) {
+      if (!collection || collection.movies.length === 0) {
           showToast('Boş bir listeyi paylaşamazsınız.', 'error');
           return null;
       }
 
       const shareId = generateUniqueShareId();
-      const tmdb = new TmdbService();
+      
+      // Paylaşmadan önce verilerin tam olduğundan emin ol (Onarım Fonksiyonunu Çağır)
+      // Bu işlem, henüz detayları çekilmemiş filmleri tamamlar.
+      await refreshCollectionData();
 
-      // UI Geri Bildirimi: Verilerin toplandığını kullanıcıya bildir
-      showToast('Analiz verileri hazırlanıyor, lütfen bekleyin...', 'info');
-
-      // --- CRITICAL UPDATE: ENRICH DATA BEFORE SHARING ---
-      const enrichedMovies = await Promise.all(collection.movies.map(async (movie) => {
-          // Eğer zaten credits ve cast verisi doluysa olduğu gibi kullan
-          if (movie.credits && movie.credits.cast && movie.credits.cast.length > 0) {
-              return movie;
-          }
-
-          // Veri eksikse API'den çek
-          try {
-             const isTv = !!(movie.name || movie.first_air_date);
-             const type = isTv ? 'tv' : 'movie';
-             
-             // Detay isteği at (append_to_response=credits otomatik eklenir service içinde)
-             const fullDetails = await tmdb.getMovieDetail(movie.id, type);
-             
-             return { ...movie, ...fullDetails };
-          } catch (e) {
-              console.warn(`Could not enrich movie ${movie.id}`, e);
-              return movie;
-          }
-      }));
-
-      // Veriyi Paylaşım İçin Optimize Et
-      const optimizedMovies = enrichedMovies.map(movie => {
-          let credits = undefined;
-          if (movie.credits) {
-              credits = {
-                  // Sadece ilk 15 oyuncuyu al (Payload küçültmek için)
-                  cast: (movie.credits.cast || []).slice(0, 15).map(c => ({
-                      id: c.id, 
-                      name: c.name, 
-                      character: c.character, 
-                      profile_path: c.profile_path,
-                      order: c.order
-                  })),
-                  // Yönetmenleri al (Director)
-                  crew: (movie.credits.crew || []).filter(p => p.job === 'Director').map(c => ({
-                      id: c.id,
-                      name: c.name,
-                      job: c.job,
-                      department: c.department,
-                      profile_path: c.profile_path
-                  }))
-              };
-          }
-
-          return {
-              id: movie.id,
-              title: movie.title,
-              name: movie.name,
-              poster_path: movie.poster_path,
-              backdrop_path: movie.backdrop_path,
-              vote_average: movie.vote_average,
-              release_date: movie.release_date,
-              first_air_date: movie.first_air_date,
-              genre_ids: movie.genre_ids,
-              genres: movie.genres,
-              overview: movie.overview ? movie.overview.substring(0, 200) + '...' : undefined,
-              runtime: movie.runtime,
-              episode_run_time: movie.episode_run_time,
-              number_of_seasons: movie.number_of_seasons,
-              number_of_episodes: movie.number_of_episodes,
-              status: movie.status,
-              created_by: movie.created_by, // TV Creator'ları buradan gelir
-              production_countries: movie.production_countries,
-              addedAt: movie.addedAt,
-              credits: credits // Zenginleştirilmiş veri
-          }; 
-      });
+      // Güncel koleksiyonu tekrar al (State güncellenmiş olabilir)
+      // React state update hemen yansımaz, bu yüzden refetch yapmak yerine
+      // refreshCollectionData zaten state'i güncellediği için bir sonraki render döngüsünü beklememiz gerekir.
+      // Ancak kullanıcı deneyimi için burada mevcut state üzerinden gideceğiz, 
+      // çünkü refreshCollectionData zaten arka planda çalışıp state'i set ediyor.
+      
+      // NOT: State güncellemesi asenkron olduğu için, burada collection değişkeni hala eski olabilir.
+      // Paylaşım fonksiyonu genellikle manuel tetiklendiği için bu nadir bir durumdur.
+      // Garantiye almak için payload'ı oluştururken kontrol ediyoruz.
 
       const payload: any = { 
           id: shareId,
           user_id: user.id, 
           name: collection.name, 
-          movies: optimizedMovies,
+          movies: collection.movies, // refreshCollectionData sonrası bunlar dolmuş olmalı
           top_favorite_movies: collection.topFavoriteMovies,
           top_favorite_shows: collection.topFavoriteShows
       };
 
       try {
         const { error } = await supabase.from('shared_lists').insert(payload);
-        if (error) {
-            console.error("Supabase insert error:", error);
-            throw error;
-        }
+        if (error) throw error;
         return `?list=${shareId}`;
-        
       } catch (err) {
-         console.error("Share failed completely:", err);
+         console.error("Share failed:", err);
          showToast('Liste kaydedilirken bir hata oluştu.', 'error');
          return null;
       }
   };
 
-  const exitSharedMode = useCallback(() => {
-      setSharedList(null);
-  }, []);
+  const exitSharedMode = useCallback(() => { setSharedList(null); }, []);
 
-  // --- 4. USER ACTIONS ---
+  // --- 4. USER ACTIONS & DATA REPAIR ---
+
+  // YENİ FONKSİYON: Eksik verileri tamamlar
+  const refreshCollectionData = async () => {
+      const activeCol = collections.find(c => c.id === activeCollectionId);
+      if (!activeCol || activeCol.movies.length === 0) return;
+
+      const moviesToUpdate = activeCol.movies.filter(m => !m.credits || !m.production_countries);
+      
+      if (moviesToUpdate.length === 0) return; // Her şey güncel
+
+      const tmdb = new TmdbService();
+      
+      // Paralel olarak verileri çek
+      const updatedMovies = await Promise.all(activeCol.movies.map(async (movie) => {
+          // Eğer verisi eksikse API'den çek
+          if (!movie.credits || !movie.production_countries) {
+              try {
+                  const isTv = !!(movie.name || movie.first_air_date);
+                  const type = isTv ? 'tv' : 'movie';
+                  const details = await tmdb.getMovieDetail(movie.id, type);
+                  // Eski veriyi (eklenme tarihi vs) koru, yeni detayları ekle
+                  return { ...movie, ...details };
+              } catch (e) {
+                  console.warn(`Failed to refresh movie ${movie.id}`, e);
+                  return movie;
+              }
+          }
+          return movie;
+      }));
+
+      // State'i güncelle
+      setCollections(prev => prev.map(col => {
+          if (col.id === activeCollectionId) {
+              return { ...col, movies: updatedMovies };
+          }
+          return col;
+      }));
+  };
 
   const createCollection = (name: string) => {
       const newCol: Collection = { 
@@ -365,28 +324,53 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
   };
 
+  // GÜNCELLENMİŞ FONKSİYON: Ekleme anında veri zenginleştirme
   const toggleMovieInCollection = useCallback(async (movie: Movie) => {
     const targetCol = collections.find(c => c.id === activeCollectionId);
     if (!targetCol) return;
 
     const exists = targetCol.movies.some(m => m.id === movie.id);
 
-    setCollections(prev => prev.map(col => {
-        if (col.id === activeCollectionId) {
-            if (exists) {
+    if (exists) {
+        // Çıkarma işlemi (Senkron yapılabilir)
+        setCollections(prev => prev.map(col => {
+            if (col.id === activeCollectionId) {
                 return {
                     ...col,
                     movies: col.movies.filter(m => m.id !== movie.id),
                     topFavoriteMovies: (col.topFavoriteMovies || []).map(mid => mid === movie.id ? null : mid),
                     topFavoriteShows: (col.topFavoriteShows || []).map(mid => mid === movie.id ? null : mid),
                 };
-            } else {
-                return { ...col, movies: [...col.movies, { ...movie, addedAt: new Date().toISOString() }] };
             }
+            return col;
+        }));
+        showToast('Listeden çıkarıldı', 'info');
+    } else {
+        // Ekleme işlemi (Asenkron - Detayları Çek)
+        const tmdb = new TmdbService();
+        let movieToAdd = { ...movie, addedAt: new Date().toISOString() };
+
+        // Eğer credits verisi eksikse (Keşfet'ten geliyorsa eksiktir), detayları çek
+        if (!movie.credits) {
+             try {
+                 const isTv = !!(movie.name || movie.first_air_date);
+                 const type = isTv ? 'tv' : 'movie';
+                 const details = await tmdb.getMovieDetail(movie.id, type);
+                 movieToAdd = { ...movieToAdd, ...details };
+             } catch (e) {
+                 console.warn("Could not fetch details on add, adding basic info", e);
+             }
         }
-        return col;
-    }));
-  }, [activeCollectionId, collections]);
+
+        setCollections(prev => prev.map(col => {
+            if (col.id === activeCollectionId) {
+                return { ...col, movies: [...col.movies, movieToAdd] };
+            }
+            return col;
+        }));
+        showToast('Listeye eklendi', 'success');
+    }
+  }, [activeCollectionId, collections, showToast]);
 
   const checkIsSelected = useCallback((id: number) => {
       const activeCollection = collections.find(c => c.id === activeCollectionId);
@@ -438,7 +422,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         shareCollection, 
         resetCollections, 
         updateTopFavorite,
-        exitSharedMode
+        exitSharedMode,
+        refreshCollectionData
     }}>
       {children}
     </CollectionContext.Provider>

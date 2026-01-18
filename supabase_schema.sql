@@ -54,3 +54,7 @@ begin
     alter table public.shared_lists add column top_favorite_shows jsonb default '[null, null, null, null, null]'::jsonb;
   end if;
 end $$;
+
+-- 4. VERİ BÜTÜNLÜĞÜ (Opsiyonel Kontrol)
+-- Movies kolonunun boş olmamasını garanti altına alan bir constraint (Eğer yoksa)
+-- alter table public.shared_lists add constraint check_movies_not_null check (movies is not null);

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Movie, Genre } from '../../types';
 import { useCollectionContext } from '../../context/CollectionContext';
 import { useReviewContext } from '../../context/ReviewContext';
@@ -32,11 +32,19 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     toggleMovieInCollection, 
     checkIsSelected,
     updateTopFavorite,
-    shareCollection
+    shareCollection,
+    refreshCollectionData // VERİ ONARIM FONKSİYONU
   } = useCollectionContext();
 
   const { reviews } = useReviewContext();
   
+  // --- Auto-Repair Data Effect ---
+  // Eğer koleksiyondaki filmlerde detay eksikse (cast vs), arka planda tamamla.
+  useEffect(() => {
+      refreshCollectionData();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCollectionId]); // Sadece koleksiyon değiştiğinde kontrol et
+
   // --- View Control State ---
   const [activeTab, setActiveTab] = useState<TabOption>('movie');
   
