@@ -21,8 +21,8 @@ type TabOption = 'movie' | 'tv';
 const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, onBack }) => {
   const { 
       sharedList, 
-      checkIsSelected, // Global context'ten gelir (Kullanıcının kendi yerel listesini kontrol eder)
-      toggleMovieInCollection // Global context'ten gelir (Kullanıcının kendi yerel listesine ekler)
+      checkIsSelected, 
+      toggleMovieInCollection 
   } = useCollectionContext();
   
   const { user } = useAuth();
@@ -39,23 +39,20 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
       });
   }, [allMovies, activeTab]);
 
+  // DÜZELTME: Otomatik doldurma (Auto-fill) kaldırıldı.
+  // Artık sadece veritabanında gerçekten kayıtlı olan slotlar gelecek.
   const showcaseFavorites = useMemo(() => {
       if (!sharedList) return [null, null, null, null, null];
       
-      const storedFavs = activeTab === 'movie' ? sharedList.topFavoriteMovies : sharedList.topFavoriteShows;
-      
-      if (storedFavs && storedFavs.some(id => id !== null)) {
-          return storedFavs;
-      }
-      
-      const sortedByRating = [...filteredMovies].sort((a, b) => b.vote_average - a.vote_average).slice(0, 5);
-      const automaticIds = sortedByRating.map(m => m.id);
-      
-      while (automaticIds.length < 5) {
-          automaticIds.push(null as any);
-      }
-      return automaticIds;
-  }, [sharedList, filteredMovies, activeTab]);
+      return activeTab === 'movie' 
+        ? (sharedList.topFavoriteMovies || [null, null, null, null, null])
+        : (sharedList.topFavoriteShows || [null, null, null, null, null]);
+  }, [sharedList, activeTab]);
+
+  // Vitrinde gösterilecek en az 1 film var mı kontrolü
+  const hasShowcaseContent = useMemo(() => {
+      return showcaseFavorites.some(id => id !== null);
+  }, [showcaseFavorites]);
 
   const isOwner = useMemo(() => {
       if (!user || !sharedList) return false;
@@ -179,15 +176,18 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
 
       {filteredMovies.length > 0 ? (
           <>
-            <div className="mb-12">
-                <TopFavorites 
-                    favorites={showcaseFavorites}
-                    collectionMovies={filteredMovies}
-                    onSlotClick={() => {}} 
-                    type={activeTab}
-                    readOnly={true} 
-                />
-            </div>
+            {/* SADECE EĞER VİTRİN DOLUYSA GÖSTER */}
+            {hasShowcaseContent && (
+                <div className="mb-12">
+                    <TopFavorites 
+                        favorites={showcaseFavorites}
+                        collectionMovies={filteredMovies}
+                        onSlotClick={() => {}} 
+                        type={activeTab}
+                        readOnly={true} 
+                    />
+                </div>
+            )}
 
             <div className="mb-12">
                  <ErrorBoundary>
@@ -209,8 +209,6 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
                         <MovieCard 
                             key={movie.id}
                             movie={movie} 
-                            // BUG FIX: checkIsSelected kullanıcının KENDİ (yerel) listesini kontrol eder.
-                            // Bu sayede paylaşılan bir listede gezerken, "Bu film benim arşivimde var mı?" sorusunu cevaplar.
                             isSelected={checkIsSelected(movie.id)}
                             onToggleSelect={toggleMovieInCollection}
                             onClick={onSelectMovie} 
