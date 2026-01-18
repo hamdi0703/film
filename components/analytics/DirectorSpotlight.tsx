@@ -13,26 +13,21 @@ const DirectorSpotlight: React.FC<DirectorSpotlightProps> = ({ movies }) => {
     const directorCounts: Record<number, { name: string; count: number; image: string | null }> = {};
 
     movies.forEach(m => {
-      let foundCreator = false;
-
-      // 1. Try to find "Director" in crew (Movies)
-      if (m.credits?.crew) {
-          const director = m.credits.crew.find(c => c.job === 'Director');
-          if (director) {
-             if (!directorCounts[director.id]) {
-                directorCounts[director.id] = { 
-                  name: director.name, 
-                  count: 0, 
-                  image: director.profile_path || null
-                };
-             }
-             directorCounts[director.id].count += 1;
-             foundCreator = true;
-          }
-      }
-
-      // 2. If not found, check "Created By" (TV Shows)
-      if (!foundCreator && m.created_by && m.created_by.length > 0) {
+      // Safe access
+      const crew = m.credits?.crew || [];
+      const director = crew.find(c => c.job === 'Director');
+      
+      if (director) {
+        if (!directorCounts[director.id]) {
+            directorCounts[director.id] = { 
+              name: director.name, 
+              count: 0, 
+              image: director.profile_path || null
+            };
+        }
+        directorCounts[director.id].count += 1;
+      } else if (m.created_by && m.created_by.length > 0) {
+        // Handle TV Shows
         m.created_by.forEach(creator => {
              if (!directorCounts[creator.id]) {
                 directorCounts[creator.id] = {
@@ -51,8 +46,8 @@ const DirectorSpotlight: React.FC<DirectorSpotlightProps> = ({ movies }) => {
           id: index,
           label: d.name,
           count: d.count,
-          image: d.image, // AnalyticsCard handles null images by showing initials
-          // icon property removed to let AnalyticsCard use image or initial
+          image: d.image,
+          icon: <svg className="w-5 h-5 opacity-50" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);

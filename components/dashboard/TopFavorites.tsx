@@ -8,7 +8,7 @@ interface TopFavoritesProps {
   collectionMovies: Movie[];
   onSlotClick: (index: number) => void;
   type: MediaType;
-  readOnly?: boolean; 
+  readOnly?: boolean; // NEW PROP
 }
 
 const TopFavorites: React.FC<TopFavoritesProps> = ({ 
@@ -36,6 +36,17 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
     const imageUrl = movie?.poster_path ? `${IMAGE_BASE_URL}${movie.poster_path}` : null;
     const isEmpty = !movie;
 
+    // User Data
+    const userReview = movieId ? reviews[movieId] : null;
+    const userRating = userReview?.rating;
+    
+    // Spoiler Logic
+    let userComment = userReview?.comment;
+    const isSpoiler = userReview?.hasSpoiler;
+    if (isSpoiler && userComment) {
+        userComment = "Spoiler içerdiği için gizlendi.";
+    }
+
     // Rank Styling
     let rankColor = "bg-neutral-800 text-white";
     let glowColor = "";
@@ -56,12 +67,6 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
     const hoverTransform = readOnly ? '' : 'hover:-translate-y-2';
     const groupHoverScale = readOnly ? '' : 'group-hover:scale-110';
     const groupOpacity = readOnly ? 'opacity-0' : 'group-hover:opacity-100';
-    
-    // Empty State Styling based on Mode
-    // If ReadOnly + Empty -> Show a subtle placeholder, not dashed "Select"
-    const emptyStyle = readOnly 
-        ? 'bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 opacity-50' 
-        : 'bg-white/5 border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-indigo-400 dark:hover:border-indigo-500';
 
     return (
       <div 
@@ -76,7 +81,7 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
             {/* Card Frame */}
             <div className={`w-full h-full rounded-2xl overflow-hidden relative border transition-all duration-300 ${
                 isEmpty 
-                ? emptyStyle 
+                ? 'bg-white/5 border-2 border-dashed border-neutral-300 dark:border-neutral-700' 
                 : `bg-neutral-900 border-transparent shadow-xl ${!readOnly ? glowColor : ''}`
             }`}>
                 {/* Image */}
@@ -102,20 +107,10 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
                     </>
                 ) : (
                     <div className={`flex flex-col items-center justify-center h-full text-neutral-400 transition-colors ${!readOnly ? 'group-hover:text-indigo-500' : ''}`}>
-                         {/* Only show "Select" icon if NOT readOnly */}
-                         {!readOnly ? (
-                            <>
-                                <svg className="w-8 h-8 mb-2 opacity-50 transition-all group-hover:opacity-100 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4v16m8-8H4" />
-                                </svg>
-                                <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">Seç</span>
-                            </>
-                         ) : (
-                             /* ReadOnly Empty State */
-                            <svg className="w-8 h-8 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                         )}
+                        <svg className={`w-8 h-8 mb-2 opacity-50 transition-all ${!readOnly ? 'group-hover:opacity-100 group-hover:scale-110' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4v16m8-8H4" />
+                        </svg>
+                        {!readOnly && <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">Seç</span>}
                     </div>
                 )}
             </div>
@@ -153,11 +148,6 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
     const movie = getMovie(movieId);
     const imageUrl = movie?.poster_path ? `${IMAGE_BASE_URL}${movie.poster_path}` : null;
     
-    // ReadOnly Empty Style
-    const emptyStyle = readOnly 
-        ? 'bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 opacity-50' 
-        : 'bg-neutral-100 dark:bg-neutral-800 hover:text-indigo-500';
-
     return (
         <div className="flex flex-col items-center">
             <div 
@@ -177,17 +167,11 @@ const TopFavorites: React.FC<TopFavoritesProps> = ({
                         )}
                     </>
                 ) : (
-                    <div className={`w-full h-full flex flex-col items-center justify-center text-neutral-400 ${emptyStyle}`}>
-                        {!readOnly ? (
-                            <>
-                                <span className="text-[9px] font-bold mb-1">BONUS</span>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                            </>
-                        ) : (
-                             <span className="text-[9px] font-bold mb-1 opacity-50">BOŞ</span>
-                        )}
+                    <div className={`w-full h-full bg-neutral-100 dark:bg-neutral-800 flex flex-col items-center justify-center text-neutral-400 ${!readOnly ? 'hover:text-indigo-500' : ''}`}>
+                        <span className="text-[9px] font-bold mb-1">BONUS</span>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
                     </div>
                 )}
             </div>
