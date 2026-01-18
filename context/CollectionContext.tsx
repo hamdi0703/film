@@ -234,7 +234,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Paylaşmadan önce eksik verileri tamamlıyoruz (Hydration).
       
       const enrichedMovies = await Promise.all(collection.movies.map(async (movie) => {
-          // Eğer zaten credits ve cast verisi varsa olduğu gibi kullan
+          // Eğer zaten credits ve cast verisi doluysa olduğu gibi kullan
           if (movie.credits && movie.credits.cast && movie.credits.cast.length > 0) {
               return movie;
           }
@@ -257,12 +257,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
       }));
 
-      // Veriyi Paylaşım İçin Optimize Et
+      // Veriyi Paylaşım İçin Optimize Et (Payload boyutunu düşür)
       const optimizedMovies = enrichedMovies.map(movie => {
           let credits = undefined;
           if (movie.credits) {
               credits = {
-                  // Sadece ilk 12 oyuncuyu al (Payload küçültmek için)
+                  // Sadece ilk 15 oyuncuyu al (Analiz için yeterli)
                   cast: (movie.credits.cast || []).slice(0, 15).map(c => ({
                       id: c.id, 
                       name: c.name, 
