@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useToast } from './ToastContext';
@@ -47,34 +48,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { showToast } = useToast();
   
+  // Debug Yardımcısı
+  const logAuth = (msg: string, data?: any) => {
+      console.log(`%c[Auth Debug] ${msg}`, 'color: #6366f1; font-weight: bold;', data || '');
+  };
+
   // Güvenli Profil Çekme Fonksiyonu
   const fetchUserProfile = async (authUser: any) => {
       // Mock kullanıcı ise direkt dön
       if (authUser.id.startsWith('mock-')) return authUser;
 
       try {
+          logAuth('Profil verisi çekiliyor...', authUser.id);
           const { data, error } = await supabase
             .from('profiles')
             .select('is_blocked, is_admin, username, avatar_url')
             .eq('id', authUser.id)
-            .maybeSingle(); // single() yerine maybeSingle() hata fırlatmaz, null döner
+            .maybeSingle(); 
           
           if (error) {
-            console.warn("Profil verisi çekilemedi (RLS veya bağlantı hatası):", error.message);
-            // Hata olsa bile giriş yapmasına izin ver, sadece admin yetkisi olmaz.
+            console.warn("[Auth Debug] Profil çekme uyarısı (RLS olabilir):", error.message);
             return authUser;
           }
 
           if (data) {
+              logAuth('Profil verisi bulundu:', data);
               // Bloklanmış kullanıcı kontrolü
               if (data.is_blocked) {
+                  logAuth('Kullanıcı BLOKLANMIŞ. Çıkış yapılıyor.');
                   await supabase.auth.signOut();
                   setUser(null);
                   throw new Error('Hesabınız erişime kapatılmıştır.');
               }
               
-              // Auth User ile Profil Verisini Birleştir
-              // Profil tablosundaki username/avatar önceliklidir
               return {
                   ...authUser,
                   user_metadata: {
@@ -88,10 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
       } catch (e: any) {
           if (e.message === 'Hesabınız erişime kapatılmıştır.') throw e;
-          console.error("Kritik Profil Hatası:", e);
+          console.error("[Auth Debug] Kritik Profil Hatası:", e);
       }
       
-      // Profil yoksa bile standart kullanıcı olarak devam et
       return authUser;
   };
 
@@ -99,9 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
 
     const initializeAuth = async () => {
-      // 1. Mock Kullanıcı Kontrolü
+      logAuth('Başlatılıyor...');
+
+      // 1. Mock Kullanıcı Kontrolü (Yerel Depolama)
       const mock = localStorage.getItem('tria_mock_user');
       if (mock) {
+          logAuth('Mock kullanıcı bulundu (Local Storage).');
           if(mounted) {
             setUser(JSON.parse(mock));
             setLoading(false);
@@ -111,18 +119,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 2. Supabase Oturumu Kontrolü
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (error) {
+            console.error("[Auth Debug] Session get error:", error);
+            throw error;
+        }
+
         if (mounted) {
           if (session?.user) {
+            logAuth('Mevcut oturum bulundu:', session.user.email);
             const enrichedUser = await fetchUserProfile(session.user);
             setUser(enrichedUser);
           } else {
+            logAuth('Aktif oturum yok.');
             setUser(null);
           }
         }
       } catch (error) {
-        console.error("Auth init error:", error);
+        console.error("[Auth Debug] Init hatası:", error);
+        if (mounted) setUser(null);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,19 +149,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 3. Auth Listener (Oturum Değişikliklerini Dinle)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
+        
+        logAuth(`Auth Event Tetiklendi: ${event}`);
+
+        // Mock kullanıcı varsa Supabase eventlerini yoksay (çakışmayı önle)
         if (localStorage.getItem('tria_mock_user')) return;
 
         if (session?.user) {
-            try {
-                const enrichedUser = await fetchUserProfile(session.user);
-                setUser(enrichedUser);
-            } catch (error) {
-                // Bloklanmışsa kullanıcıyı null yap
-                setUser(null);
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+                try {
+                    const enrichedUser = await fetchUserProfile(session.user);
+                    setUser(enrichedUser);
+                } catch (error) {
+                    setUser(null);
+                }
             }
-        } else {
+        } else if (event === 'SIGNED_OUT') {
+            logAuth('Çıkış işlemi algılandı.');
             setUser(null);
         }
+        
         setLoading(false);
     });
 
@@ -156,7 +179,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, pass: string) => {
-    // Mock Admin Login (Geliştirme Amaçlı)
+    logAuth('Giriş deneniyor:', email);
+    
+    // Mock Admin Login
     if (email === 'admin' && pass === 'admin') {
       localStorage.setItem('tria_mock_user', JSON.stringify(MOCK_ADMIN_USER));
       setUser(MOCK_ADMIN_USER);
@@ -166,36 +191,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Gerçek Supabase Girişi
     localStorage.removeItem('tria_mock_user');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     
-    if (error) {
-      console.error("Giriş Hatası:", error);
-      throw error;
-    }
-    
-    if (data.user) {
-      const enrichedUser = await fetchUserProfile(data.user);
-      setUser(enrichedUser);
-      showToast('Giriş başarılı!', 'success');
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        
+        if (error) {
+          console.error("[Auth Debug] Giriş Hatası:", error);
+          throw error;
+        }
+        
+        if (data.user) {
+          logAuth('Giriş başarılı, profil alınıyor...');
+          const enrichedUser = await fetchUserProfile(data.user);
+          setUser(enrichedUser);
+          showToast('Giriş başarılı!', 'success');
+        }
+    } catch (e: any) {
+        logAuth('Giriş exception:', e);
+        throw e;
     }
   };
 
   const signUp = async (email: string, pass: string, username: string) => {
+    logAuth('Kayıt deneniyor:', email);
     localStorage.removeItem('tria_mock_user');
+    
     const { error } = await supabase.auth.signUp({
       email, password: pass, options: { data: { username } }
     });
-    if (error) throw error;
+    
+    if (error) {
+        console.error("[Auth Debug] Kayıt Hatası:", error);
+        throw error;
+    }
+    
     showToast('Kayıt başarılı! Giriş yapabilirsiniz.', 'success');
   };
 
   const signOut = async () => {
+    logAuth('Çıkış yapılıyor...');
     localStorage.removeItem('tria_collections');
     localStorage.removeItem('tria_user_reviews');
     localStorage.removeItem('tria_mock_user');
     
     if (user && !user.id.startsWith('mock-')) {
-        await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut();
+        if (error) console.error("[Auth Debug] SignOut hatası:", error);
     }
     
     setUser(null); 
@@ -205,6 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (username: string, avatarUrl: string) => {
     if (!user) return;
     
+    // Mock Update
     if (user.id.startsWith('mock-')) {
         const upd = { ...user, user_metadata: { ...user.user_metadata, username, avatar_url: avatarUrl } };
         setUser(upd); 
@@ -226,8 +268,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', user.id);
     
     if (profileError) {
-        console.error("Profil tablosu güncellenemedi:", profileError);
-        // Kritik hata değil, devam et
+        console.error("[Auth Debug] Profil tablosu güncellenemedi:", profileError);
     }
 
     setUser(prev => prev ? ({
@@ -249,8 +290,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     try {
         if (!user.id.startsWith('mock-')) {
-             // Supabase Client tarafında kullanıcı silme yetkisi genelde kapalıdır.
-             // Bu yüzden sadece çıkış yapıyoruz. Gerçek silme için Edge Function gerekir.
              await supabase.auth.signOut();
         }
         await signOut();
