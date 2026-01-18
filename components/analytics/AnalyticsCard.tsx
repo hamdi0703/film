@@ -63,15 +63,15 @@ const THEME_STYLES: Record<AnalyticsTheme, {
         iconBg: 'bg-indigo-50 dark:bg-indigo-900/20'
     },
     amber: {
-        // DÜZELTME: Sarı renkler daha okunabilir hale getirildi (Darker Amber)
+        // OPTİMİZE EDİLDİ: Okunabilirlik için yüksek kontrast
         gradient: 'from-amber-400 to-orange-600',
-        text: 'text-amber-700', 
-        textDark: 'dark:text-amber-400',
+        text: 'text-amber-800', // Aydınlık modda çok koyu sarı/turuncu (neredeyse kahve)
+        textDark: 'dark:text-amber-300', // Karanlık modda parlak altın
         bg: 'bg-amber-500',
         hoverText: 'hover:text-amber-900',
-        hoverTextDark: 'dark:hover:text-amber-300',
+        hoverTextDark: 'dark:hover:text-amber-200',
         border: 'border-amber-500',
-        iconBg: 'bg-amber-50 dark:bg-amber-900/20'
+        iconBg: 'bg-amber-100 dark:bg-amber-900/30' // İkon arka planı koyulaştırıldı
     },
     green: {
         gradient: 'from-emerald-500 to-teal-600',
@@ -140,7 +140,7 @@ const AnalyticsCard: React.FC<AnalyticsCardProps> = ({ title, subtitle, data, th
                         />
                     ) : (
                         <div className={`w-full h-full rounded-full border-2 border-white dark:border-neutral-800 relative z-10 ${styles.iconBg} flex items-center justify-center flex-col leading-none transition-colors`}>
-                            {item.metadata && <span className="text-[8px] text-neutral-500 font-bold mb-0.5">{item.metadata}</span>}
+                            {item.metadata && <span className="text-[8px] text-neutral-500 dark:text-neutral-400 font-bold mb-0.5">{item.metadata}</span>}
                             <span className={`text-base ${styles.text} ${styles.textDark} font-bold`}>
                                 {item.icon || item.label.charAt(0).toUpperCase()}
                             </span>

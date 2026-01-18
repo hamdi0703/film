@@ -96,14 +96,15 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
               {sharedList.name}
           </h1>
           
+          {/* İyileştirilmiş Metin Kontrastı */}
           <div className="flex flex-col items-center gap-1 mb-6">
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Hazırlayan</span>
-              <span className="text-lg font-bold text-indigo-500 dark:text-indigo-400">
+              <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">Hazırlayan</span>
+              <span className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
                   {sharedList.owner || 'Anonim'}
               </span>
           </div>
           
-          <p className="text-neutral-500 dark:text-neutral-400 max-w-lg mx-auto text-base md:text-lg leading-relaxed">
+          <p className="text-neutral-700 dark:text-neutral-300 max-w-lg mx-auto text-base md:text-lg leading-relaxed font-medium opacity-90">
              Bu koleksiyonda toplam <strong>{allMovies.length}</strong> yapım bulunmaktadır.
           </p>
       </div>
@@ -128,30 +129,42 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
             </div>
 
             {/* 4. İSTATİSTİK GRİDİ - TÜM BİLEŞENLER EKLENDİ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 items-start">
-                <ErrorBoundary fullHeight>
-                    <StatsOverview movies={filteredMovies} />
-                </ErrorBoundary>
-                <ErrorBoundary fullHeight>
-                     <GenreChart 
-                         movies={filteredMovies} 
-                         genres={genres} 
-                     />
-                </ErrorBoundary>
-                <ErrorBoundary fullHeight>
-                     <ErasChart movies={filteredMovies} />
-                </ErrorBoundary>
-                {/* EKSİK OLAN OYUNCU LİSTESİ */}
-                <ErrorBoundary fullHeight>
-                     <ActorSpotlight movies={filteredMovies} />
-                </ErrorBoundary>
-                {/* EKSİK OLAN YÖNETMEN LİSTESİ (SARI LİSTE) */}
-                <ErrorBoundary fullHeight>
-                     <DirectorSpotlight movies={filteredMovies} />
-                </ErrorBoundary>
-                <ErrorBoundary fullHeight>
-                     <CountrySpotlight movies={filteredMovies} />
-                </ErrorBoundary>
+            {/* Arka plan vurgusu eklenerek ayrışması sağlandı */}
+            <div className="bg-neutral-50 dark:bg-neutral-900/30 p-6 rounded-3xl mb-12 border border-neutral-100 dark:border-neutral-800">
+                <h3 className="text-xl font-bold text-neutral-900 dark:text-white mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-teal-500 rounded-full"></span>
+                    Koleksiyon Analizi
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                    <ErrorBoundary fullHeight>
+                        <StatsOverview movies={filteredMovies} />
+                    </ErrorBoundary>
+                    
+                    {/* Oyuncu Listesi Eklendi */}
+                    <ErrorBoundary fullHeight>
+                        <ActorSpotlight movies={filteredMovies} />
+                    </ErrorBoundary>
+
+                    {/* Yönetmen Listesi Eklendi */}
+                    <ErrorBoundary fullHeight>
+                        <DirectorSpotlight movies={filteredMovies} />
+                    </ErrorBoundary>
+
+                    <ErrorBoundary fullHeight>
+                        <GenreChart 
+                            movies={filteredMovies} 
+                            genres={genres} 
+                        />
+                    </ErrorBoundary>
+                    <ErrorBoundary fullHeight>
+                        <ErasChart movies={filteredMovies} />
+                    </ErrorBoundary>
+                    
+                    <ErrorBoundary fullHeight>
+                        <CountrySpotlight movies={filteredMovies} />
+                    </ErrorBoundary>
+                </div>
             </div>
 
             {/* 5. FİLM GRİDİ */}
@@ -189,7 +202,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
       {/* 6. ALT BİLGİ */}
       <div className="mt-24 pt-12 border-t border-neutral-200 dark:border-neutral-800 text-center">
            <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mb-4">Beğendiniz mi?</h3>
-           <p className="text-neutral-500 mb-8">Siz de kendi film ve dizi koleksiyonunuzu oluşturun.</p>
+           <p className="text-neutral-500 dark:text-neutral-400 mb-8">Siz de kendi film ve dizi koleksiyonunuzu oluşturun.</p>
            
            <div className="flex justify-center gap-4">
                <button 
@@ -201,7 +214,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ onSelectMovie, genres, 
            </div>
            
            <div className="mt-12 opacity-50">
-                <span className="text-xs font-bold tracking-widest uppercase">Tria.</span>
+                <span className="text-xs font-bold tracking-widest uppercase text-neutral-400 dark:text-neutral-600">Tria.</span>
            </div>
       </div>
     </div>
